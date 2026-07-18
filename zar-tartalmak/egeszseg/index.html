@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMDAgMTAwJz48Y2lyY2xlIGN4PSc1MCcgY3k9JzUwJyByPSc1MCcgZmlsbD0nIzJkNmE5ZicvPjx0ZXh0IHg9JzUwJyB5PSc3MicgZm9udC1mYW1pbHk9J0dlb3JnaWEsc2VyaWYnIGZvbnQtc2l6ZT0nNjInIGZvbnQtd2VpZ2h0PSdib2xkJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmaWxsPSd3aGl0ZSc+VDwvdGV4dD48L3N2Zz4=">
+  <title>Zárt tartalmak — Egészség — Pintér Tamás</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="/style.css">
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/firebase-auth.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <span class="site-name">Pintér Tamás</span>
+    <nav class="site-nav">
+      <a href="/">Főoldal</a>
+      <span id="login-badge"></span>
+    </nav>
+  </div>
+</header>
+
+<div class="protected-page">
+  <div id="auth-message">
+    <div class="loading-spinner">⏳ Betöltés...</div>
+  </div>
+
+  <div id="protected-content" style="display:none;">
+    <p class="protected-breadcrumb">
+      <a href="/zar-tartalmak/">← Zárt tartalmak</a>
+    </p>
+    <h1>🏥 Egészség — Zárt anyagok</h1>
+    <p class="protected-subtitle">Exkluzív egészségügyi dokumentumok és anyagok</p>
+
+    <div class="files-list">
+      <div class="file-item">
+        <div class="file-icon">📄</div>
+        <div class="file-info">
+          <h3>Weboldal — további oldalak</h3>
+          <p>Ide jöhetnek később a HTML oldalak</p>
+          <span class="file-meta">HTML | Tervezett</span>
+        </div>
+      </div>
+
+      <div class="file-item">
+        <div class="file-icon">📄</div>
+        <div class="file-info">
+          <h3>Itt lesznek a beszkennelt dokumentumok</h3>
+          <p>PDF-ek, képek, dokumentumok — amiket feltöltesz</p>
+          <span class="file-meta">PDF / Kép / DOC | Előkészítve</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-note">
+      <p>💡 Az anyagokat a <code>zar-tartalmak/egeszseg/</code> mappába kell feltölteni.</p>
+      <p>Ha készen vagy az anyagokkal, szólj, és bemásolom/elrendezem őket.</p>
+    </div>
+
+    <p class="protected-back">
+      <a href="/zar-tartalmak/">← Vissza a zárt tartalmakhoz</a>
+    </p>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <p>
+    <a href="https://facebook.com/pintertom" target="_blank" rel="noopener">Jelölj be ismerősnek: Facebook</a>
+  </p>
+</footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  requireAuth('egeszseg');
+});
+</script>
+
+<style>
+.protected-page {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 44px 24px 72px;
+}
+.protected-page h1 {
+  font-size: clamp(24px,4vw,36px);
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 10px;
+}
+.protected-subtitle {
+  font-size: 16px;
+  color: var(--text-muted);
+  margin-bottom: 36px;
+}
+.protected-breadcrumb {
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.file-item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: box-shadow .15s;
+}
+.file-item:hover { box-shadow: 0 4px 18px rgba(0,0,0,.09); }
+.file-icon { font-size: 28px; line-height: 1; padding-top: 2px; }
+.file-info { flex: 1; }
+.file-info h3 { font-size: 16px; font-weight: 700; color: #111; margin-bottom: 4px; }
+.file-info p { font-size: 14px; color: var(--text-muted); margin-bottom: 6px; }
+.file-meta { font-size: 12px; color: #999; }
+.file-link {
+  display: inline-block;
+  padding: 8px 16px;
+  background: var(--blue);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.file-link:hover { background: var(--blue-dark); text-decoration: none; }
+.upload-note {
+  margin-top: 32px;
+  padding: 20px;
+  background: var(--blue-light);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+.upload-note code { background: #dce8f2; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.protected-back { margin-top: 40px; font-size: 14px; }
+.no-access { text-align: center; padding: 60px 24px; }
+.no-access h2 { font-size: 22px; margin-bottom: 12px; }
+.no-access p { font-size: 16px; color: var(--text-muted); margin-bottom: 12px; }
+.btn-link {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 12px 28px;
+  background: var(--blue);
+  color: #fff;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  transition: background .15s;
+}
+.btn-link:hover { background: var(--blue-dark); text-decoration: none; }
+.loading-spinner { text-align: center; padding: 60px; font-size: 18px; color: var(--text-muted); }
+</style>
+
+</body>
+</html>

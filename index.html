@@ -14,6 +14,13 @@
   <meta property="og:url" content="https://pinter-tamas.github.io/">
   <meta property="og:site_name" content="Pintér Tamás">
   <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="firebase-auth.js"></script>
 </head>
 <body>
 
@@ -22,6 +29,7 @@
     <span class="site-name">Pintér Tamás</span>
     <nav class="site-nav">
       <a href="https://facebook.com/pintertom" target="_blank" rel="noopener">Kapcsolat: Facebook</a>
+      <span id="login-badge"></span>
     </nav>
   </div>
 </header>
@@ -69,6 +77,13 @@
       <h3>Emberi Kapcsolatok</h3>
       <p>Miért van annyi konfliktus az emberek között? Miért nincs béke, harmónia és együttműködés inkább?</p>
       <span class="read-more">Olvasd el →</span>
+    </a>
+
+    <a class="article-card" href="/zar-tartalmak/" id="protected-card">
+      <div class="card-eyebrow">🔒 Zárt tartalmak</div>
+      <h3>Nem nyilvános anyagok</h3>
+      <p>Amelyeket csak regisztrált felhasználók láthatnak. A hozzáféréshez töltsd ki a fenti témák egyikéhez tartozó kapcsolatfelvételi űrlapot!</p>
+      <span class="read-more" id="protected-link-text">🔑 Bejelentkezés</span>
     </a>
 
   </div>

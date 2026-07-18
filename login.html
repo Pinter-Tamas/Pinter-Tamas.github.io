@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMDAgMTAwJz48Y2lyY2xlIGN4PSc1MCcgY3k9JzUwJyByPSc1MCcgZmlsbD0nIzJkNmE5ZicvPjx0ZXh0IHg9JzUwJyB5PSc3MicgZm9udC1mYW1pbHk9J0dlb3JnaWEsc2VyaWYnIGZvbnQtc2l6ZT0nNjInIGZvbnQtd2VpZ2h0PSdib2xkJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmaWxsPSd3aGl0ZSc+VDwvdGV4dD48L3N2Zz4=">
+  <title>Bejelentkezés — Pintér Tamás</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="style.css">
+  <link rel="canonical" href="https://pinter-tamas.github.io/login.html">
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="firebase-auth.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <span class="site-name">Pintér Tamás</span>
+    <nav class="site-nav">
+      <a href="/">Főoldal</a>
+    </nav>
+  </div>
+</header>
+
+<div class="login-page">
+  <div class="login-box">
+    <h1>Bejelentkezés</h1>
+    <p class="login-subtitle">Zárt tartalmak eléréséhez</p>
+
+    <div id="login-error" class="login-error" style="display:none;"></div>
+
+    <form id="login-form" onsubmit="return handleLogin(event)">
+      <div class="form-group">
+        <label for="email">Email cím</label>
+        <input type="email" id="email" name="email" placeholder="pelda@email.com" required autocomplete="email">
+      </div>
+
+      <div class="form-group">
+        <label for="password">Jelszó</label>
+        <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+
+      <button type="submit" class="btn btn-primary">Bejelentkezés</button>
+
+      <div class="login-links">
+        <a href="#" onclick="handleForgotPassword(event)" id="forgot-password">Elfelejtetted a jelszót?</a>
+      </div>
+    </form>
+
+    <div id="reset-message" class="login-success" style="display:none;"></div>
+
+    <p class="login-back">
+      <a href="/">← Vissza a főoldalra</a>
+    </p>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <p>
+    <a href="https://facebook.com/pintertom" target="_blank" rel="noopener">Jelölj be ismerősnek: Facebook</a>
+  </p>
+</footer>
+
+<script>
+// Átirányítás kezelése
+const urlParams = new URLSearchParams(window.location.search);
+const redirect = urlParams.get('redirect') || '/';
+
+// Ha már be van jelentkezve, irányítsuk át
+auth.onAuthStateChanged((user) => {
+  if (user) {
+    window.location.href = redirect;
+  }
+});
+
+// Bejelentkezés
+async function handleLogin(event) {
+  event.preventDefault();
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const errorDiv = document.getElementById('login-error');
+  const submitBtn = document.querySelector('.btn-primary');
+
+  errorDiv.style.display = 'none';
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Bejelentkezés...';
+
+  const result = await login(email, password);
+
+  if (result.success) {
+    window.location.href = redirect;
+  } else {
+    errorDiv.textContent = result.message;
+    errorDiv.style.display = 'block';
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Bejelentkezés';
+  }
+
+  return false;
+}
+
+// Elfelejtett jelszó
+async function handleForgotPassword(event) {
+  event.preventDefault();
+  const email = document.getElementById('email').value;
+  const resetMsg = document.getElementById('reset-message');
+
+  if (!email) {
+    alert('Kérlek, add meg az email címed a jelszó visszaállításához.');
+    return;
+  }
+
+  try {
+    await auth.sendPasswordResetEmail(email);
+    resetMsg.textContent = '✅ Email elküldve! Nézd meg a postaládád (és a spam mappát).';
+    resetMsg.style.display = 'block';
+  } catch (error) {
+    let msg = 'Hiba történt.';
+    if (error.code === 'auth/user-not-found') msg = 'Nincs ilyen email címmel felhasználó.';
+    if (error.code === 'auth/invalid-email') msg = 'Érvénytelen email cím.';
+    alert(msg);
+  }
+}
+</script>
+
+<style>
+.login-page {
+  max-width: 440px;
+  margin: 60px auto 80px;
+  padding: 0 24px;
+}
+.login-box {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 40px 36px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+.login-box h1 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 6px;
+}
+.login-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 28px;
+}
+.form-group {
+  margin-bottom: 20px;
+}
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 6px;
+}
+.form-group input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: inherit;
+  transition: border-color .15s;
+  box-sizing: border-box;
+}
+.form-group input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(45,106,159,0.1);
+}
+.btn {
+  display: inline-block;
+  width: 100%;
+  padding: 13px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--blue-dark); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-links {
+  text-align: center;
+  margin-top: 16px;
+}
+.login-links a {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.login-links a:hover { color: var(--blue); }
+.login-error {
+  background: #fff0f0;
+  border: 1px solid #ecc;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #a33;
+  margin-bottom: 20px;
+}
+.login-success {
+  background: #f0fff0;
+  border: 1px solid #cec;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #3a3;
+  margin-top: 16px;
+}
+.login-back {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 14px;
+}
+</style>
+
+</body>
+</html>

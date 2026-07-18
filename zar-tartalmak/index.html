@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMDAgMTAwJz48Y2lyY2xlIGN4PSc1MCcgY3k9JzUwJyByPSc1MCcgZmlsbD0nIzJkNmE5ZicvPjx0ZXh0IHg9JzUwJyB5PSc3MicgZm9udC1mYW1pbHk9J0dlb3JnaWEsc2VyaWYnIGZvbnQtc2l6ZT0nNjInIGZvbnQtd2VpZ2h0PSdib2xkJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmaWxsPSd3aGl0ZSc+VDwvdGV4dD48L3N2Zz4=">
+  <title>Zárt tartalmak — Pintér Tamás</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="/style.css">
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/firebase-auth.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <span class="site-name">Pintér Tamás</span>
+    <nav class="site-nav">
+      <a href="/">Főoldal</a>
+      <span id="login-badge"></span>
+    </nav>
+  </div>
+</header>
+
+<div class="protected-page">
+  <div id="auth-message">
+    <div class="loading-spinner">⏳ Betöltés...</div>
+  </div>
+
+  <div id="protected-content" style="display:none;">
+    <h1>🔒 Zárt tartalmak</h1>
+    <p class="protected-subtitle">Azok az anyagok, amelyekhez hozzáférésed van.</p>
+
+    <div id="topics-content">
+      <div class="loading-spinner">⏳ Tartalmak betöltése...</div>
+    </div>
+
+    <p class="protected-back">
+      <a href="/">← Vissza a főoldalra</a>
+    </p>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <p>
+    <a href="https://facebook.com/pintertom" target="_blank" rel="noopener">Jelölj be ismerősnek: Facebook</a>
+  </p>
+</footer>
+
+<script>
+// Oldal inicializálása
+document.addEventListener('DOMContentLoaded', function() {
+  initProtectedPage();
+});
+
+function initProtectedPage() {
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      document.getElementById('auth-message').innerHTML = `
+        <div class="no-access">
+          <h2>🔒 Bejelentkezés szükséges</h2>
+          <p>Kérlek, jelentkezz be a zárt tartalmak eléréséhez.</p>
+          <a href="/login.html?redirect=/zar-tartalmak/" class="btn-link">Bejelentkezés</a>
+        </div>
+      `;
+      return;
+    }
+
+    // Betöltjük a user adatait
+    await loadUserTopics(user.uid);
+    updateUI();
+
+    // Megjelenítjük a tartalmakat
+    document.getElementById('auth-message').style.display = 'none';
+    document.getElementById('protected-content').style.display = 'block';
+    renderTopics();
+  });
+}
+
+function renderTopics() {
+  const container = document.getElementById('topics-content');
+
+  if (!userTopics || userTopics.length === 0) {
+    container.innerHTML = `
+      <div class="no-access">
+        <h2>🚫 Nincs hozzáférésed</h2>
+        <p>Jelenleg egyetlen zárt tartalomhoz sincs hozzáférésed.</p>
+        <p>Ha úgy gondolod, hogy ez hiba, kérlek, vedd fel a kapcsolatot.</p>
+      </div>
+    `;
+    return;
+  }
+
+  let html = '<div class="protected-grid">';
+
+  const topicMap = {
+    'egeszseg': {
+      title: '🏥 Egészség',
+      desc: 'Kizárólagos egészségügyi anyagok, dokumentumok',
+      files: [
+        { name: 'Dokumentumok listája', url: '/zar-tartalmak/egeszseg/' }
+      ]
+    },
+    'elhizas': {
+      title: '⚖️ Elhízás',
+      desc: 'Testsúly-kontrollal kapcsolatos zárt anyagok',
+      files: [
+        { name: 'Dokumentumok listája', url: '/zar-tartalmak/elhizas/' }
+      ]
+    },
+    'tanulas': {
+      title: '📚 Tanulás',
+      desc: 'Tanulással kapcsolatos kiegészítő anyagok',
+      files: [
+        { name: 'Dokumentumok listája', url: '/zar-tartalmak/tanulas/' }
+      ]
+    },
+    'munka-vallalkozas': {
+      title: '💼 Munka / Vállalkozás',
+      desc: 'Üzleti és karrier anyagok',
+      files: [
+        { name: 'Dokumentumok listája', url: '/zar-tartalmak/munka-vallalkozas/' }
+      ]
+    },
+    'emberi-kapcsolatok': {
+      title: '🤝 Emberi Kapcsolatok',
+      desc: 'Kapcsolati témájú kiegészítő anyagok',
+      files: [
+        { name: 'Dokumentumok listája', url: '/zar-tartalmak/emberi-kapcsolatok/' }
+      ]
+    }
+  };
+
+  userTopics.forEach(topic => {
+    const info = topicMap[topic];
+    if (!info) return;
+
+    html += `
+      <div class="protected-card">
+        <div class="card-eyebrow">Zárt tartalom</div>
+        <h3>${info.title}</h3>
+        <p>${info.desc}</p>
+        <div class="protected-files">
+          ${info.files.map(f => `<a href="${f.url}" class="file-link">📄 ${f.name}</a>`).join('')}
+        </div>
+      </div>
+    `;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+</script>
+
+<style>
+.protected-page {
+  max-width: var(--max-w-wide);
+  margin: 0 auto;
+  padding: 52px 24px 72px;
+}
+.protected-page h1 {
+  font-size: clamp(24px,4vw,36px);
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 10px;
+}
+.protected-subtitle {
+  font-size: 16px;
+  color: var(--text-muted);
+  margin-bottom: 36px;
+}
+.protected-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill,minmax(320px,1fr));
+  gap: 24px;
+}
+.protected-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 28px;
+  transition: box-shadow .15s;
+}
+.protected-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.09); }
+.protected-card h3 { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 10px; }
+.protected-card p { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; }
+.protected-files { display: flex; flex-direction: column; gap: 8px; }
+.file-link {
+  font-size: 14px;
+  padding: 8px 12px;
+  background: var(--blue-light);
+  border-radius: 6px;
+  color: var(--blue);
+  font-weight: 600;
+  transition: background .15s;
+}
+.file-link:hover {
+  background: #dce8f2;
+  text-decoration: none;
+}
+.no-access {
+  text-align: center;
+  padding: 60px 24px;
+}
+.no-access h2 { font-size: 22px; margin-bottom: 12px; }
+.no-access p { font-size: 16px; color: var(--text-muted); margin-bottom: 12px; }
+.btn-link {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 12px 28px;
+  background: var(--blue);
+  color: #fff;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  transition: background .15s;
+}
+.btn-link:hover { background: var(--blue-dark); text-decoration: none; }
+.protected-back { margin-top: 40px; font-size: 14px; }
+.loading-spinner {
+  text-align: center;
+  padding: 60px;
+  font-size: 18px;
+  color: var(--text-muted);
+}
+</style>
+
+</body>
+</html>

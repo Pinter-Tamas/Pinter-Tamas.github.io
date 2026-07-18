@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMDAgMTAwJz48Y2lyY2xlIGN4PSc1MCcgY3k9JzUwJyByPSc1MCcgZmlsbD0nIzJkNmE5ZicvPjx0ZXh0IHg9JzUwJyB5PSc3MicgZm9udC1mYW1pbHk9J0dlb3JnaWEsc2VyaWYnIGZvbnQtc2l6ZT0nNjInIGZvbnQtd2VpZ2h0PSdib2xkJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmaWxsPSd3aGl0ZSc+VDwvdGV4dD48L3N2Zz4=">
+  <title>Admin — Pintér Tamás</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="firebase-config.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <span class="site-name">Admin — Pintér Tamás</span>
+    <nav class="site-nav">
+      <a href="/">Főoldal</a>
+      <span id="login-badge"></span>
+    </nav>
+  </div>
+</header>
+
+<div class="admin-page">
+  <div id="admin-login" style="display:block;">
+    <div class="login-box" style="max-width:400px;margin:40px auto;border:1px solid var(--border);border-radius:12px;padding:36px;">
+      <h2>Admin bejelentkezés</h2>
+      <div id="admin-error" class="login-error" style="display:none;"></div>
+      <form onsubmit="return adminLogin(event)">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="admin-email" required>
+        </div>
+        <div class="form-group">
+          <label>Jelszó</label>
+          <input type="password" id="admin-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Bejelentkezés</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="admin-panel" style="display:none;">
+    <h1>👤 Admin felület</h1>
+    <p class="admin-subtitle">Felhasználók kezelése — hozzáférések beállítása témakörönként</p>
+
+    <!-- Új user létrehozása -->
+    <div class="admin-card">
+      <h2>➕ Új felhasználó hozzáadása</h2>
+      <form onsubmit="return createUser(event)" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="form-group">
+          <label>Név</label>
+          <input type="text" id="new-name" placeholder="Pl. Kiss Péter" required>
+        </div>
+        <div class="form-group">
+          <label>Email (ez lesz a bejelentkezési név)</label>
+          <input type="email" id="new-email" placeholder="pelda@email.com" required>
+        </div>
+        <div class="form-group">
+          <label>Ideiglenes jelszó</label>
+          <input type="text" id="new-password" placeholder="pl. ideiglenes123" required>
+        </div>
+        <div class="form-group">
+          <label>Hozzáférés témakörök</label>
+          <div class="topic-checkboxes">
+            <label><input type="checkbox" value="egeszseg"> 🏥 Egészség</label>
+            <label><input type="checkbox" value="elhizas"> ⚖️ Elhízás</label>
+            <label><input type="checkbox" value="tanulas"> 📚 Tanulás</label>
+            <label><input type="checkbox" value="munka-vallalkozas"> 💼 Munka/Vállalkozás</label>
+            <label><input type="checkbox" value="emberi-kapcsolatok"> 🤝 Emberi Kapcsolatok</label>
+          </div>
+        </div>
+        <div style="grid-column:1/3;">
+          <button type="submit" class="btn btn-primary">Felhasználó létrehozása</button>
+        </div>
+      </form>
+      <div id="create-result" class="admin-msg" style="display:none;margin-top:16px;"></div>
+    </div>
+
+    <!-- User lista -->
+    <div class="admin-card">
+      <h2>📋 Felhasználók listája</h2>
+      <div id="users-list">
+        <div class="loading-spinner">⏳ Betöltés...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let adminUser = null;
+
+// Admin auth
+auth.onAuthStateChanged((user) => {
+  if (user) {
+    adminUser = user;
+    document.getElementById('admin-login').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+    loadUsers();
+  }
+});
+
+async function adminLogin(event) {
+  event.preventDefault();
+  const email = document.getElementById('admin-email').value;
+  const pwd = document.getElementById('admin-password').value;
+  const errDiv = document.getElementById('admin-error');
+
+  try {
+    await auth.signInWithEmailAndPassword(email, pwd);
+    errDiv.style.display = 'none';
+  } catch (error) {
+    errDiv.textContent = 'Hibás email vagy jelszó.';
+    errDiv.style.display = 'block';
+  }
+  return false;
+}
+
+// User létrehozása
+async function createUser(event) {
+  event.preventDefault();
+  const name = document.getElementById('new-name').value;
+  const email = document.getElementById('new-email').value;
+  const password = document.getElementById('new-password').value;
+  const resultDiv = document.getElementById('create-result');
+
+  const checkboxes = document.querySelectorAll('.topic-checkboxes input:checked');
+  const topics = Array.from(checkboxes).map(cb => cb.value);
+
+  try {
+    // 1. Firebase Auth user létrehozása
+    const userCred = await auth.createUserWithEmailAndPassword(email, password);
+    await userCred.user.updateProfile({ displayName: name });
+
+    // 2. Firestore rekord létrehozása
+    await db.collection('users').doc(userCred.user.uid).set({
+      email: email,
+      displayName: name,
+      allowedTopics: topics,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    resultDiv.style.display = 'block';
+    resultDiv.className = 'admin-msg admin-success';
+    resultDiv.textContent = `✅ ${name} (${email}) létrehozva! Hozzáférés: ${topics.join(', ') || 'nincs'}`;
+
+    // Űrlap reset
+    document.getElementById('new-name').value = '';
+    document.getElementById('new-email').value = '';
+    document.getElementById('new-password').value = '';
+    checkboxes.forEach(cb => cb.checked = false);
+
+    // Lista frissítése
+    loadUsers();
+  } catch (error) {
+    resultDiv.style.display = 'block';
+    resultDiv.className = 'admin-msg admin-error';
+    if (error.code === 'auth/email-already-in-use') {
+      resultDiv.textContent = '❌ Ez az email cím már használatban van.';
+    } else {
+      resultDiv.textContent = '❌ Hiba: ' + error.message;
+    }
+  }
+  return false;
+}
+
+// User lista betöltése
+async function loadUsers() {
+  const container = document.getElementById('users-list');
+  try {
+    const snapshot = await db.collection('users').orderBy('createdAt', 'desc').get();
+    if (snapshot.empty) {
+      container.innerHTML = '<p style="color:var(--text-muted);">Még nincsenek felhasználók.</p>';
+      return;
+    }
+
+    let html = '<div class="users-table">';
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      const topics = data.allowedTopics || [];
+      const topicLabels = topics.map(t => {
+        const labels = { 'egeszseg':'🏥','elhizas':'⚖️','tanulas':'📚','munka-vallalkozas':'💼','emberi-kapcsolatok':'🤝' };
+        return labels[t] || t;
+      }).join(' ') || '❌ nincs';
+
+      html += `
+        <div class="user-row" data-uid="${doc.id}">
+          <div class="user-info">
+            <strong>${data.displayName || '—'}</strong>
+            <span class="user-email">${data.email}</span>
+          </div>
+          <div class="user-topics">
+            ${topics.map(t => `<span class="topic-badge ${topics.includes(t) ? 'active' : ''}" onclick="toggleTopic('${doc.id}','${t}')">${t}</span>`).join(' ')}
+          </div>
+          <div class="user-actions">
+            <input type="password" class="reset-pwd-input" placeholder="Új jelszó" id="pwd-${doc.id}">
+            <button onclick="resetPassword('${doc.id}')" class="btn-sm">Jelszó reset</button>
+            <button onclick="deleteUser('${doc.id}')" class="btn-sm btn-danger">Törlés</button>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch (error) {
+    container.innerHTML = `<p style="color:#a33;">Hiba: ${error.message}</p>`;
+  }
+}
+
+// Togggle topic
+async function toggleTopic(uid, topic) {
+  try {
+    const doc = await db.collection('users').doc(uid).get();
+    const current = doc.data().allowedTopics || [];
+    let newTopics;
+    if (current.includes(topic)) {
+      newTopics = current.filter(t => t !== topic);
+    } else {
+      newTopics = [...current, topic];
+    }
+    await db.collection('users').doc(uid).update({ allowedTopics: newTopics });
+    loadUsers();
+  } catch (error) {
+    alert('Hiba: ' + error.message);
+  }
+}
+
+// Jelszó reset
+async function resetPassword(uid) {
+  const pwdInput = document.getElementById(`pwd-${uid}`);
+  const newPwd = pwdInput.value;
+  if (!newPwd || newPwd.length < 6) {
+    alert('A jelszónak legalább 6 karakter hosszúnak kell lennie.');
+    return;
+  }
+  try {
+    // Admin SDK nincs, de a user saját jelszavát változtathatjuk
+    // Ehhez újra kell hitelesíteni magunkat - egyszerűbb: küldünk reset emailt
+    const doc = await db.collection('users').doc(uid).get();
+    const email = doc.data().email;
+    await auth.sendPasswordResetEmail(email);
+    alert(`✅ Jelszó visszaállítási email elküldve ide: ${email}`);
+    pwdInput.value = '';
+  } catch (error) {
+    alert('Hiba: ' + error.message);
+  }
+}
+
+// User törlés
+async function deleteUser(uid) {
+  if (!confirm('Biztosan törlöd ezt a felhasználót?')) return;
+  try {
+    // Firebase Auth user törlése (Firestore-ból is)
+    await db.collection('users').doc(uid).delete();
+    // Megjegyzés: Firebase Auth-ból csak Admin SDK-val tudunk törölni
+    // A user bejelentkezve marad, de a Firestore rekord nélkül nem lát semmit
+    alert('✅ Felhasználó eltávolítva. (Auth rekord kézi törléshez: Firebase Console → Authentication → Users)');
+    loadUsers();
+  } catch (error) {
+    alert('Hiba: ' + error.message);
+  }
+}
+</script>
+
+<style>
+.admin-page {
+  max-width: var(--max-w-wide);
+  margin: 0 auto;
+  padding: 40px 24px 72px;
+}
+.admin-page h1 { font-size: clamp(24px,4vw,32px); font-weight: 800; color: #111; margin-bottom: 8px; }
+.admin-subtitle { font-size: 15px; color: var(--text-muted); margin-bottom: 36px; }
+.admin-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  margin-bottom: 28px;
+}
+.admin-card h2 { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 20px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 700; color: #333; margin-bottom: 6px; }
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="password"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.form-group input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(45,106,159,0.1);
+}
+.topic-checkboxes { display: flex; flex-wrap: wrap; gap: 8px; }
+.topic-checkboxes label {
+  font-size: 13px;
+  padding: 6px 12px;
+  background: var(--blue-light);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.topic-checkboxes input { margin-right: 4px; }
+.btn {
+  padding: 11px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover { background: var(--blue-dark); }
+.btn-sm {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  background: #fff;
+  transition: all .15s;
+}
+.btn-sm:hover { background: var(--blue-light); border-color: var(--blue); }
+.btn-danger { color: #a33; border-color: #ecc; }
+.btn-danger:hover { background: #fff0f0; border-color: #a33; }
+.admin-msg {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.admin-success { background: #f0fff0; border: 1px solid #cec; color: #3a3; }
+.admin-error { background: #fff0f0; border: 1px solid #ecc; color: #a33; }
+.users-table { display: flex; flex-direction: column; gap: 12px; }
+.user-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafbfc;
+}
+.user-info { min-width: 180px; }
+.user-info strong { display: block; font-size: 14px; }
+.user-email { font-size: 12px; color: var(--text-muted); }
+.user-topics { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.topic-badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #eef1f5;
+  color: #999;
+  cursor: pointer;
+  transition: all .15s;
+  user-select: none;
+}
+.topic-badge.active { background: #dce8f2; color: var(--blue); font-weight: 600; }
+.topic-badge:hover { background: var(--blue); color: #fff; }
+.user-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.reset-pwd-input {
+  width: 120px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+}
+.login-error { background: #fff0f0; border: 1px solid #ecc; border-radius: 8px; padding: 12px 16px; font-size: 14px; color: #a33; margin-bottom: 20px; }
+.loading-spinner { text-align: center; padding: 40px; color: var(--text-muted); }
+</style>
+
+</body>
+</html>
