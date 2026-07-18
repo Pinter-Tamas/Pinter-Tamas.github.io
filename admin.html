@@ -96,11 +96,28 @@
 let adminUser = null;
 
 // Admin auth
-auth.onAuthStateChanged((user) => {
+auth.onAuthStateChanged(async (user) => {
   if (user) {
     adminUser = user;
     document.getElementById('admin-login').style.display = 'none';
     document.getElementById('admin-panel').style.display = 'block';
+    
+    // Ha az admin-nak nincs még Firestore rekordja, létrehozzuk
+    try {
+      const adminDoc = await db.collection('users').doc(user.uid).get();
+      if (!adminDoc.exists) {
+        await db.collection('users').doc(user.uid).set({
+          email: user.email,
+          displayName: user.displayName || 'Admin',
+          allowedTopics: ['egeszseg', 'elhizas', 'tanulas', 'munka-vallalkozas', 'emberi-kapcsolatok'],
+          isAdmin: true,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    } catch (e) {
+      console.log('Admin rekord ellenőrzés:', e.message);
+    }
+    
     loadUsers();
   }
 });
