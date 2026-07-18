@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bejelentkezés — Angol és Német Beszédgyakorlás</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="training.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-name" href="../../index.html">Pintér Tamás</a>
+    <nav class="site-nav">
+      <a href="../../index.html">Főoldal</a>
+      <a href="index.html">Beszédgyakorlás</a>
+    </nav>
+  </div>
+</header>
+
+<section class="training-section">
+  <div class="training-inner" style="max-width:480px;">
+    <h2>Bejelentkezés</h2>
+
+    <div id="login-error" class="notification notification-error" style="display:none;"></div>
+    <div id="login-success" class="notification notification-success" style="display:none;"></div>
+
+    <form id="login-form" class="training-form" onsubmit="return false;">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" required placeholder="Pl. kovacs.eva@email.hu">
+      </div>
+      <div class="form-group">
+        <label for="password">Jelszó</label>
+        <input type="password" id="password" required placeholder="Jelszó">
+      </div>
+      <div class="form-group">
+        <button type="submit" class="btn btn-primary" style="width:100%;" id="login-btn">Belépés</button>
+      </div>
+      <p style="text-align:center;font-size:14px;color:var(--text-muted);">
+        <a href="#" onclick="resetPassword()">Elfelejtett jelszó?</a>
+      </p>
+      <p style="text-align:center;font-size:14px;color:var(--text-muted);">
+        Nincs még fiókod? <a href="szulo/register.html">Regisztrálok</a>
+      </p>
+    </form>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <p>© 2026 Pintér Tamás · <a href="../../index.html">pinter-tamas.github.io</a></p>
+</footer>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="firebase-training-config.js"></script>
+
+<script>
+document.getElementById('login-form').addEventListener('submit', function() {
+  var email = document.getElementById('email').value.trim();
+  var password = document.getElementById('password').value;
+
+  var errDiv = document.getElementById('login-error');
+  errDiv.style.display = 'none';
+
+  if (!email || !password) {
+    errDiv.textContent = 'Minden mező kitöltése kötelező.';
+    errDiv.style.display = 'block';
+    return;
+  }
+
+  var btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'Folyamatban…';
+
+  auth.signInWithEmailAndPassword(email, password)
+    .then(function() {
+      // Ellenőrizzük a parent regisztrációt
+      var uid = auth.currentUser.uid;
+      db.collection('parents').doc(uid).get().then(function(doc) {
+        if (doc.exists && doc.data().registered) {
+          window.location.href = 'szulo/dashboard.html';
+        } else {
+          // Nincs training regisztráció → irány a regisztráció
+          window.location.href = 'szulo/register.html';
+        }
+      });
+    })
+    .catch(function(err) {
+      var msg = 'Hibás email vagy jelszó.';
+      if (err.code === 'auth/user-not-found') {
+        msg = 'Nincs ilyen emaillel regisztrált fiók.';
+      } else if (err.code === 'auth/wrong-password') {
+        msg = 'Hibás jelszó.';
+      } else if (err.code === 'auth/too-many-requests') {
+        msg = 'Túl sok próbálkozás. Kérlek várj egy kicsit.';
+      }
+      errDiv.textContent = msg;
+      errDiv.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Belépés';
+    });
+});
+
+function resetPassword() {
+  var email = document.getElementById('email').value.trim();
+  if (!email) {
+    document.getElementById('login-error').textContent = 'Add meg az email címed a jelszó visszaállításához.';
+    document.getElementById('login-error').style.display = 'block';
+    return;
+  }
+  auth.sendPasswordResetEmail(email)
+    .then(function() {
+      document.getElementById('login-success').textContent = 'Jelszó visszaállító email elküldve! Ellenőrizd a postafiókod.';
+      document.getElementById('login-success').style.display = 'block';
+      document.getElementById('login-error').style.display = 'none';
+    })
+    .catch(function(err) {
+      document.getElementById('login-error').textContent = 'Hiba: ' + err.message;
+      document.getElementById('login-error').style.display = 'block';
+    });
+}
+</script>
+
+</body>
+</html>

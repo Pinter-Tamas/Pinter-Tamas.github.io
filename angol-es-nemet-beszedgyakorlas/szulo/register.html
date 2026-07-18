@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Regisztráció — Angol és Német Beszédgyakorlás</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../training.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-name" href="../../index.html">Pintér Tamás</a>
+    <nav class="site-nav">
+      <a href="../../index.html">Főoldal</a>
+      <a href="../index.html">Beszédgyakorlás</a>
+    </nav>
+  </div>
+</header>
+
+<section class="training-section">
+  <div class="training-inner">
+    <h2>Regisztráció — Szülő</h2>
+    <p style="text-align:center;color:var(--text-muted);max-width:520px;margin:0 auto 32px;">
+      Töltsd ki az adataidat, add meg a gyerekeid nevét, és válassz fizetési módot.
+      A regisztráció után azonnal foglalhatsz időpontot.
+    </p>
+
+    <div id="form-success" class="notification notification-success" style="display:none;"></div>
+    <div id="form-error" class="notification notification-error" style="display:none;"></div>
+
+    <form id="register-form" class="training-form" onsubmit="return false;">
+      <!-- Szülő adatai -->
+      <div class="form-row">
+        <div class="form-group">
+          <label for="parent-name">Teljes név</label>
+          <input type="text" id="parent-name" required placeholder="Pl. Kovács Éva">
+        </div>
+        <div class="form-group">
+          <label for="parent-phone">Telefonszám</label>
+          <input type="tel" id="parent-phone" required placeholder="Pl. +36 30 123 4567">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="parent-email">Email</label>
+        <input type="email" id="parent-email" required placeholder="Pl. kovacs.eva@email.hu">
+        <div class="form-hint">Erre az emailre küldjük a visszaigazolásokat és értesítéseket.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="parent-password">Jelszó</label>
+        <input type="password" id="parent-password" required placeholder="Minimum 6 karakter" minlength="6">
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:28px 0;">
+
+      <!-- Gyerekek -->
+      <h3 style="font-size:16px;font-weight:700;color:#111;margin-bottom:16px;">Gyerek(ek) adatai</h3>
+      <div id="students-container">
+        <div class="student-entry">
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Név</label>
+              <input type="text" class="student-name" required placeholder="Pl. Kovács Péter">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Életkor (opcionális)</label>
+              <input type="number" class="student-age" min="5" max="20" placeholder="Pl. 14">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:13px;">Preferált gyakorlópartner (opcionális)</label>
+            <input type="text" class="student-partner" placeholder="Név vagy email">
+            <div class="partner-hint">Ha van ismerős aki szintén jár, itt megadhatod. Később módosítható.</div>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="add-student-btn" onclick="addStudent()">+ Új gyerek hozzáadása</button>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:28px 0;">
+
+      <!-- Fizetési mód -->
+      <h3 style="font-size:16px;font-weight:700;color:#111;margin-bottom:16px;">Fizetési mód</h3>
+      <div class="payment-options">
+        <div class="payment-option" onclick="selectPayment('stripe', this)">
+          <div class="po-icon">💳</div>
+          <div class="po-label">Bankkártya online</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Stripe — azonnali</div>
+        </div>
+        <div class="payment-option" onclick="selectPayment('cash', this)">
+          <div class="po-icon">💵</div>
+          <div class="po-label">Készpénz</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Órán fizetek</div>
+        </div>
+        <div class="payment-option" onclick="selectPayment('bank_transfer', this)">
+          <div class="po-icon">🏦</div>
+          <div class="po-label">Átutalás</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Számlaszámra</div>
+        </div>
+      </div>
+      <input type="hidden" id="payment-method" value="">
+
+      <!-- Stripe info -->
+      <div id="stripe-info" class="notification notification-info" style="display:none;">
+        Regisztráció után a fizetési oldalra irányítunk, ahol bankkártyával fizethetsz. A kreditek azonnal jóváíródnak.
+      </div>
+
+      <!-- Cash / bank transfer info -->
+      <div id="manual-payment-info" class="notification notification-info" style="display:none;">
+        <div id="manual-payment-text"></div>
+        <div style="margin-top:8px;font-size:13px;">A foglalás a fizetés igazolásáig függőben marad. Admin jóváhagyása után a kreditek jóváíródnak.</div>
+      </div>
+
+      <div class="form-group" style="margin-top:24px;">
+        <button type="submit" class="btn btn-primary" style="width:100%;" id="submit-btn">Regisztráció</button>
+      </div>
+
+      <p style="text-align:center;font-size:14px;color:var(--text-muted);">
+        Már van fiókod? <a href="../login.html">Jelentkezz be!</a>
+      </p>
+    </form>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <p>© 2026 Pintér Tamás · <a href="../../index.html">pinter-tamas.github.io</a></p>
+</footer>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="../firebase-training-config.js"></script>
+
+<script>
+var selectedPayment = '';
+
+function selectPayment(method, el) {
+  selectedPayment = method;
+  document.getElementById('payment-method').value = method;
+  // UI update
+  document.querySelectorAll('.payment-option').forEach(function(o) { o.classList.remove('selected'); });
+  el.classList.add('selected');
+  // Info panels
+  document.getElementById('stripe-info').style.display = method === 'stripe' ? 'block' : 'none';
+  document.getElementById('manual-payment-info').style.display = method !== 'stripe' ? 'block' : 'none';
+  if (method === 'cash') {
+    document.getElementById('manual-payment-text').textContent =
+      'A készpénzt az első órán hozd el. 10.000 Ft = 4 kredit.';
+  } else if (method === 'bank_transfer') {
+    document.getElementById('manual-payment-text').textContent =
+      'Átutalási adatok: [számlaszámot itt add meg admin-ként]. 10.000 Ft = 4 kredit.';
+  }
+}
+
+function addStudent() {
+  var container = document.getElementById('students-container');
+  var div = document.createElement('div');
+  div.className = 'student-entry';
+  div.innerHTML = ''
+    + '<button type="button" class="remove-student" onclick="this.parentElement.remove()">&times;</button>'
+    + '<div class="form-row">'
+    + '<div class="form-group" style="margin-bottom:0;">'
+    + '<label>Név</label>'
+    + '<input type="text" class="student-name" required placeholder="Pl. Kovács Péter">'
+    + '</div>'
+    + '<div class="form-group" style="margin-bottom:0;">'
+    + '<label>Életkor (opcionális)</label>'
+    + '<input type="number" class="student-age" min="5" max="20" placeholder="Pl. 14">'
+    + '</div>'
+    + '</div>'
+    + '<div class="form-group" style="margin-bottom:0;">'
+    + '<label style="font-size:13px;">Preferált gyakorlópartner (opcionális)</label>'
+    + '<input type="text" class="student-partner" placeholder="Név vagy email">'
+    + '</div>';
+  container.appendChild(div);
+}
+
+document.getElementById('register-form').addEventListener('submit', function() {
+  var name = document.getElementById('parent-name').value.trim();
+  var phone = document.getElementById('parent-phone').value.trim();
+  var email = document.getElementById('parent-email').value.trim();
+  var password = document.getElementById('parent-password').value;
+  var payment = document.getElementById('payment-method').value;
+
+  // Validáció
+  var errDiv = document.getElementById('form-error');
+  errDiv.style.display = 'none';
+  document.getElementById('form-success').style.display = 'none';
+
+  if (!name || !phone || !email || !password) {
+    errDiv.textContent = 'Minden mező kitöltése kötelező.';
+    errDiv.style.display = 'block';
+    return;
+  }
+  if (password.length < 6) {
+    errDiv.textContent = 'A jelszó legalább 6 karakter.';
+    errDiv.style.display = 'block';
+    return;
+  }
+  if (!payment) {
+    errDiv.textContent = 'Válassz fizetési módot.';
+    errDiv.style.display = 'block';
+    return;
+  }
+
+  // Gyerek adatok gyűjtése
+  var students = [];
+  var studentEntries = document.querySelectorAll('.student-entry');
+  studentEntries.forEach(function(entry) {
+    var sName = entry.querySelector('.student-name')?.value.trim();
+    if (sName) {
+      students.push({
+        name: sName,
+        age: entry.querySelector('.student-age')?.value || '',
+        preferredPartner: entry.querySelector('.student-partner')?.value.trim() || ''
+      });
+    }
+  });
+  if (students.length === 0) {
+    errDiv.textContent = 'Adj meg legalább egy gyereket.';
+    errDiv.style.display = 'block';
+    return;
+  }
+
+  // Submit gomb letiltása
+  var btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Folyamatban…';
+
+  // Firebase Auth regisztráció
+  auth.createUserWithEmailAndPassword(email, password)
+    .then(function(userCred) {
+      var uid = userCred.user.uid;
+      // Parent dokumentum létrehozása
+      return db.collection('parents').doc(uid).set({
+        name: name,
+        email: email,
+        phone: phone,
+        paymentMethod: payment,
+        registered: true,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        role: 'payer'
+      });
+    })
+    .then(function() {
+      // Diákok létrehozása és parentStudent kapcsoló
+      var uid = auth.currentUser.uid;
+      var promises = students.map(function(student) {
+        return db.collection('students').add({
+          name: student.name,
+          age: student.age,
+          preferredPartner: student.preferredPartner,
+          enrolledAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(function(studentRef) {
+          // Kapcsoló tábla
+          return db.collection('parentStudent').add({
+            parentUid: uid,
+            studentId: studentRef.id,
+            relationship: 'parent',
+            canBook: true
+          });
+        });
+      });
+      return Promise.all(promises);
+    })
+    .then(function() {
+      // Kredit inicializálás (0 egyenleggel)
+      var uid = auth.currentUser.uid;
+      return db.collection('credits').doc(uid).set({
+        balance: 0,
+        totalPurchased: 0,
+        totalUsed: 0,
+        lastActivityAt: firebase.firestore.FieldValue.serverTimestamp(),
+        transactions: []
+      });
+    })
+    .then(function() {
+      document.getElementById('form-success').textContent = 'Sikeres regisztráció!';
+      document.getElementById('form-success').style.display = 'block';
+      document.getElementById('register-form').style.display = 'none';
+
+      // Stripe esetén → fizetési oldal
+      if (payment === 'stripe') {
+        setTimeout(function() {
+          window.location.href = '../payment.html';
+        }, 1500);
+      } else {
+        // Készpénz/átutalás → dashboard
+        setTimeout(function() {
+          window.location.href = 'dashboard.html';
+        }, 1500);
+      }
+    })
+    .catch(function(err) {
+      errDiv.textContent = 'Hiba: ' + (err.message || 'Ismeretlen hiba');
+      errDiv.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Regisztráció';
+    });
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Angol és Német Beszédgyakorlás — Pinter Tamás</title>
+  <meta name="description" content="Csoportos angol és német beszédgyakorlás diákoknak. Heti rendszeres alkalmak, fix csoportok, rugalmas időpont-foglalás.">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="training.css">
+</head>
+<body>
+
+<!-- ── Site Header ── -->
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-name" href="../../index.html">Pintér Tamás</a>
+    <nav class="site-nav">
+      <a href="../../index.html">Főoldal</a>
+      <span id="user-area"></span>
+    </nav>
+  </div>
+</header>
+
+<!-- ── Hero ── -->
+<section class="hub-hero">
+  <h1>Angol és Német Beszédgyakorlás</h1>
+  <p>Heti rendszeres csoportos alkalmak diákoknak — gyakorolj anyanyelvi környezetben, párban, rugalmas időbeosztással.</p>
+</section>
+
+<!-- ── Hogyan működik ── -->
+<section class="training-section">
+  <div class="training-inner">
+    <h2>Hogyan működik?</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h3>🎯 Válassz csomagot</h3>
+        <p>10.000 Ft-ért 4 kreditet kapsz — 4 alkalom 1-1 óra beszédgyakorlás. A kreditek 6 hónapig érvényesek.</p>
+      </div>
+      <div class="feature-card">
+        <h3>📅 Foglalj időpontot</h3>
+        <p>Válassz a szabad időpontok közül. Csoportok max. 30 fővel, párban dolgozva.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🔄 Lemondás & csere</h3>
+        <p>24 órával az óra előtt ingyen lemondhatod. Ha valaki lebetegszik, helyet cserélhet mással.</p>
+      </div>
+      <div class="feature-card">
+        <h3>📧 Értesítések</h3>
+        <p>Emailben kapsz visszaigazolást a foglalásról, emlékeztetőt az óra előtt, és értesítést ha változás van.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Árak ── -->
+<section class="training-section training-section-alt">
+  <div class="training-inner">
+    <h2>Árak</h2>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <h3>Alap csomag</h3>
+        <div class="price">10.000 Ft</div>
+        <p>4 kredit = 4 alkalom</p>
+        <p class="price-note">6 hónapig érvényes</p>
+      </div>
+    </div>
+    <p class="payment-methods">Fizethetsz bankkártyával online, készpénzzel vagy átutalással.</p>
+  </div>
+</section>
+
+<!-- ── Időpontok ── -->
+<section class="training-section" id="upcoming-sessions">
+  <div class="training-inner">
+    <h2>Elérhető időpontok</h2>
+    <p id="sessions-loading">Betöltés…</p>
+    <div id="sessions-list" class="sessions-list"></div>
+    <p class="section-link"><a href="szulo/booking.html">Összes időpont és helyszín →</a></p>
+  </div>
+</section>
+
+<!-- ── Kezdés ── -->
+<section class="training-section training-section-alt">
+  <div class="training-inner" style="text-align:center;">
+    <h2>Kezdd el most!</h2>
+    <p style="max-width:520px;margin:0 auto 24px;color:var(--text-muted);">Regisztrálj, add meg a gyereke(i)d adatait, válassz fizetési módot, és foglalj időpontot — mindent online, néhány perc alatt.</p>
+    <div class="cta-buttons">
+      <a href="szulo/register.html" class="btn btn-primary">Regisztrálok</a>
+      <a href="login.html" class="btn btn-outline">Bejelentkezés</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer class="site-footer">
+  <p>© 2026 Pintér Tamás · <a href="../../index.html">pinter-tamas.github.io</a></p>
+</footer>
+
+<!-- Firebase + Training config -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="firebase-training-config.js"></script>
+<script src="shared/session-list.js"></script>
+
+<script>
+// Auth state → frissítjük a fejlécet
+window.onTrainingAuthReady = function() {
+  var area = document.getElementById('user-area');
+  if (window.trainingUser && window.trainingUser.registered) {
+    area.innerHTML = '<span class="login-user-name">' + escapeHtml(window.trainingUser.name || 'Szülő') + '</span>'
+      + '<a href="szulo/dashboard.html" style="color:rgba(255,255,255,.82);font-size:14px;margin-left:12px;">Dashboard</a>'
+      + '<button class="btn-logout" onclick="auth.signOut()">Kilépés</button>';
+  } else if (window.trainingUser) {
+    area.innerHTML = '<a href="szulo/register.html" class="btn-login">Regisztráció befejezése</a>'
+      + '<button class="btn-logout" onclick="auth.signOut()" style="margin-left:8px;">Kilépés</button>';
+  } else {
+    area.innerHTML = '<a href="login.html" class="btn-login">Belépés</a>'
+      + '<a href="szulo/register.html" class="btn-login">Regisztráció</a>';
+  }
+};
+
+function escapeHtml(s) { var d=document.createElement('div');d.textContent=s;return d.innerHTML; }
+</script>
+
+</body>
+</html>

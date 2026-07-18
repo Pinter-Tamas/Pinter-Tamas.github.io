@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Angol és Német Beszédgyakorlás</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../training.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-name" href="../../index.html">Pintér Tamás — Admin</a>
+    <nav class="site-nav">
+      <a href="../../index.html">Főoldal</a>
+      <button class="btn-logout" onclick="auth.signOut()">Kilépés</button>
+    </nav>
+  </div>
+</header>
+
+<section class="training-section">
+  <div class="training-inner">
+    <h2>Admin Dashboard</h2>
+
+    <!-- Tabs -->
+    <div class="admin-tabs">
+      <a href="#" class="active" onclick="switchTab('overview');return false;">Áttekintés</a>
+      <a href="#" onclick="switchTab('sessions');return false;">Órák</a>
+      <a href="#" onclick="switchTab('pending');return false;">Függőben</a>
+      <a href="#" onclick="switchTab('credits');return false;">Kreditek</a>
+      <a href="#" onclick="switchTab('attendance');return false;">Jelenlét</a>
+      <a href="#" onclick="switchTab('students');return false;">Diákok</a>
+    </div>
+
+    <div id="tab-content"><p class="loading">Betöltés…</p></div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <p>© 2026 Pintér Tamás — Admin felület</p>
+</footer>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="../firebase-training-config.js"></script>
+
+<script>
+// Admin guard — ellenőrizzük, hogy a user admin-e
+window.onTrainingAuthReady = function() {
+  if (!window.trainingUser) {
+    window.location.href = '../login.html';
+    return;
+  }
+  loadOverview();
+};
+
+var currentTab = 'overview';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.admin-tabs a').forEach(function(a) { a.classList.remove('active'); });
+  event.target.classList.add('active');
+
+  var container = document.getElementById('tab-content');
+  container.innerHTML = '<p class="loading">Betöltés…</p>';
+
+  switch(tab) {
+    case 'overview': loadOverview(); break;
+    case 'sessions': loadSessionsTab(); break;
+    case 'pending': loadPendingTab(); break;
+    case 'credits': loadCreditsTab(); break;
+    case 'attendance': loadAttendanceTab(); break;
+    case 'students': loadStudentsTab(); break;
+  }
+}
+
+// ── Áttekintés ──
+function loadOverview() {
+  var container = document.getElementById('tab-content');
+  Promise.all([
+    db.collection('parents').get(),
+    db.collection('students').get(),
+    db.collection('sessions').where('status', '==', 'open').get(),
+    db.collection('bookings').where('status', '==', 'pending_payment').get()
+  ]).then(function(results) {
+    var parents = results[0].size;
+    var students = results[1].size;
+    var openSessions = results[2].size;
+    var pending = results[3].size;
+
+    container.innerHTML = ''
+      + '<div class="dashboard-grid">'
+      + '<div class="dashboard-card"><h3>Szülők</h3><div class="credit-balance">' + parents + '</div></div>'
+      + '<div class="dashboard-card"><h3>Diákok</h3><div class="credit-balance">' + students + '</div></div>'
+      + '<div class="dashboard-card"><h3>Nyitott órák</h3><div class="credit-balance">' + openSessions + '</div></div>'
+      + '<div class="dashboard-card"><h3>Függő fizetések</h3><div class="credit-balance">' + pending + '</div></div>'
+      + '</div>';
+
+    if (pending > 0) {
+      container.innerHTML += '<div style="margin-top:24px;"><button class="btn btn-primary" onclick="switchTab(\'pending\')">Függő fizetések kezelése →</button></div>';
+    }
+  });
+}
+
+// ── Órák kezelése ──
+function loadSessionsTab() {
+  var container = document.getElementById('tab-content');
+  container.innerHTML = ''
+    + '<div style="margin-bottom:20px;"><button class="btn btn-primary" onclick="showNewSessionForm()">+ Új óra</button></div>'
+    + '<div id="sessions-table"><p class="loading">Betöltés…</p></div>'
+    + '<div id="session-form" style="display:none;margin-top:20px;"></div>';
+
+  loadSessionsTable();
+}
+
+function loadSessionsTable() {
+  db.collection('sessions').orderBy('date', 'desc').orderBy('startTime').get().then(function(snap) {
+    var html = '<table class="admin-table"><thead><tr><th>Típus</th><th>Dátum</th><th>Idő</th><th>Helyszín</th><th>Létszám</th><th>Státusz</th><th>Művelet</th></tr></thead><tbody>';
+    snap.forEach(function(doc) {
+      var s = doc.data();
+      var enrolled = s.enrolledStudents ? s.enrolledStudents.length : 0;
+      var typeLabel = s.type === 'vegyes' ? 'Angol+Nemét' : (s.type === 'angol' ? 'Angol' : 'Némét');
+      html += '<tr>'
+        + '<td>' + esc(typeLabel) + '</td>'
+        + '<td>' + esc(s.date) + '</td>'
+        + '<td>' + esc(s.startTime) + '–' + esc(s.endTime) + '</td>'
+        + '<td>' + esc(s.location) + '</td>'
+        + '<td>' + enrolled + '/' + s.maxParticipants + '</td>'
+        + '<td>' + esc(s.status) + '</td>'
+        + '<td>'
+        + '<button class="btn btn-xs btn-danger" onclick="cancelSession(\'' + doc.id + '\')">Törlés</button>'
+        + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('sessions-table').innerHTML = html || '<p style="color:var(--text-muted);">Nincs óra.</p>';
+  });
+}
+
+function showNewSessionForm() {
+  document.getElementById('session-form').innerHTML = ''
+    + '<h3 style="font-size:16px;margin-bottom:16px;">Új óra</h3>'
+    + '<div class="form-row"><div class="form-group"><label>Típus</label><select id="new-type"><option value="vegyes">Angol & Némét</option><option value="angol">Angol</option><option value="német">Némét</option></select></div>'
+    + '<div class="form-group"><label>Max létszám</label><input type="number" id="new-max" value="30" min="4" max="50"></div></div>'
+    + '<div class="form-row"><div class="form-group"><label>Dátum</label><input type="date" id="new-date"></div>'
+    + '<div class="form-row"><div class="form-group"><label>Kezdés</label><input type="time" id="new-start" value="16:00"></div>'
+    + '<div class="form-group"><label>Befejezés</label><input type="time" id="new-end" value="17:00"></div></div></div>'
+    + '<div class="form-row"><div class="form-group"><label>Helyszín név</label><input type="text" id="new-location" placeholder="Pl. Közösségi Ház"></div>'
+    + '<div class="form-group"><label>Cím</label><input type="text" id="new-address" placeholder="Pl. Budapest, Kossuth u. 1."></div></div>'
+    + '<button class="btn btn-primary" onclick="createSession()" style="margin-top:12px;">Mentés</button>'
+    + '<p id="session-msg" style="margin-top:8px;"></p>';
+  document.getElementById('session-form').style.display = 'block';
+}
+
+function createSession() {
+  var data = {
+    type: document.getElementById('new-type').value,
+    date: document.getElementById('new-date').value,
+    startTime: document.getElementById('new-start').value,
+    endTime: document.getElementById('new-end').value,
+    location: document.getElementById('new-location').value,
+    address: document.getElementById('new-address').value,
+    maxParticipants: parseInt(document.getElementById('new-max').value) || 30,
+    minParticipants: 4,
+    enrolledStudents: [],
+    waitlist: [],
+    status: 'open',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  if (!data.date || !data.startTime || !data.endTime || !data.location || !data.address) {
+    document.getElementById('session-msg').innerHTML = '<span style="color:#dc3545;">Minden mező kötelező.</span>';
+    return;
+  }
+
+  db.collection('sessions').add(data).then(function() {
+    document.getElementById('session-msg').innerHTML = '<span style="color:#28a745;">Óra létrehozva!</span>';
+    document.getElementById('session-form').style.display = 'none';
+    loadSessionsTable();
+  });
+}
+
+function cancelSession(sessionId) {
+  if (!confirm('Biztosan törlöd ezt az órát? A résztvevők kreditjei jóváíródnak.')) return;
+  db.collection('sessions').doc(sessionId).update({ status: 'cancelled', cancelledAt: new Date().toISOString() })
+    .then(function() {
+      // Minden confirmed booking kredit visszaírása
+      return db.collection('bookings').where('sessionId', '==', sessionId).where('status', '==', 'confirmed').get()
+        .then(function(bSnap) {
+          var promises = [];
+          bSnap.forEach(function(bDoc) {
+            promises.push(
+              db.collection('credits').doc(bDoc.data().parentUid).update({
+                balance: firebase.firestore.FieldValue.increment(1),
+                totalUsed: firebase.firestore.FieldValue.increment(-1),
+                lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
+              }),
+              db.collection('bookings').doc(bDoc.id).update({ status: 'cancelled', cancelledAt: firebase.firestore.FieldValue.serverTimestamp() })
+            );
+          });
+          return Promise.all(promises);
+        });
+    })
+    .then(function() { alert('Óra törölve. Kreditek jóváírva.'); loadSessionsTable(); });
+}
+
+// ── Függő fizetések ──
+function loadPendingTab() {
+  var container = document.getElementById('tab-content');
+  container.innerHTML = '<p class="loading">Betöltés…</p>';
+
+  db.collection('bookings').where('status', '==', 'pending_payment').get().then(function(bSnap) {
+    if (bSnap.empty) {
+      container.innerHTML = '<p style="color:var(--text-muted);">Nincs függő fizetés.</p>';
+      return;
+    }
+
+    var promises = [];
+    bSnap.forEach(function(bDoc) {
+      var b = bDoc.data();
+      var p = Promise.all([
+        db.collection('parents').doc(b.parentUid).get(),
+        db.collection('students').doc(b.studentId).get(),
+        db.collection('sessions').doc(b.sessionId).get()
+      ]).then(function(results) {
+        return {
+          bookingId: bDoc.id,
+          parentName: results[0].exists ? results[0].data().name : '?',
+          parentEmail: results[0].exists ? results[0].data().email : '?',
+          studentName: results[1].exists ? results[1].data().name : '?',
+          sessionDate: results[2].exists ? results[2].data().date : '?',
+          sessionTime: results[2].exists ? (results[2].data().startTime + '–' + results[2].data().endTime) : '?',
+          sessionLocation: results[2].exists ? results[2].data().location : '?'
+        };
+      });
+      promises.push(p);
+    });
+
+    Promise.all(promises).then(function(items) {
+      var html = '<table class="admin-table"><thead><tr><th>Szülő</th><th>Diák</th><th>Óra</th><th>Művelet</th></tr></thead><tbody>';
+      items.forEach(function(item) {
+        html += '<tr>'
+          + '<td>' + esc(item.parentName) + '<br><small>' + esc(item.parentEmail) + '</small></td>'
+          + '<td>' + esc(item.studentName) + '</td>'
+          + '<td>' + esc(item.sessionDate) + ' ' + esc(item.sessionTime) + ' — ' + esc(item.sessionLocation) + '</td>'
+          + '<td>'
+          + '<button class="btn btn-xs btn-primary" onclick="approvePayment(\'' + item.bookingId + '\')">Jóváhagy</button> '
+          + '<button class="btn btn-xs btn-danger" onclick="rejectPayment(\'' + item.bookingId + '\')">Elutasít</button>'
+          + '</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    });
+  });
+}
+
+function approvePayment(bookingId) {
+  db.collection('bookings').doc(bookingId).get().then(function(bDoc) {
+    var b = bDoc.data();
+    // Kredit jóváírás: +1 (mivel a foglalás már megtörtént, de pendingben volt)
+    return db.collection('credits').doc(b.parentUid).get().then(function(cDoc) {
+      var currentBalance = cDoc.exists ? (cDoc.data().balance || 0) : 0;
+
+      // Frissítjük a bookingot + kredit tranzakció
+      return db.collection('bookings').doc(bookingId).update({ status: 'confirmed' }).then(function() {
+        return db.collection('credits').doc(b.parentUid).update({
+          balance: firebase.firestore.FieldValue.increment(1),
+          totalPurchased: firebase.firestore.FieldValue.increment(4),
+          lastActivityAt: firebase.firestore.FieldValue.serverTimestamp(),
+          transactions: firebase.firestore.FieldValue.arrayUnion({
+            type: 'purchase',
+            amount: 4,
+            reason: 'Készpénzes/átutalásos csomag — admin jóváhagyás',
+            date: new Date().toISOString()
+          })
+        });
+      });
+    });
+  }).then(function() {
+    alert('Fizetés jóváhagyva! Kreditek jóváírva.');
+    loadPendingTab();
+  });
+}
+
+function rejectPayment(bookingId) {
+  if (!confirm('Biztosan elutasítod? A foglalás törlődik és a hely felszabadul.')) return;
+  db.collection('bookings').doc(bookingId).get().then(function(bDoc) {
+    var b = bDoc.data();
+    return db.collection('sessions').doc(b.sessionId).update({
+      enrolledStudents: firebase.firestore.FieldValue.arrayRemove(b.studentId)
+    }).then(function() {
+      return db.collection('bookings').doc(bookingId).update({ status: 'cancelled', cancelledAt: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  }).then(function() {
+    alert('Fizetés elutasítva. Foglalás törölve.');
+    loadPendingTab();
+  });
+}
+
+// ── Kreditek kezelése ──
+function loadCreditsTab() {
+  var container = document.getElementById('tab-content');
+  container.innerHTML = '<p class="loading">Betöltés…</p>';
+
+  db.collection('credits').get().then(function(snap) {
+    if (snap.empty) { container.innerHTML = '<p style="color:var(--text-muted);">Nincs adat.</p>'; return; }
+    var promises = [];
+    snap.forEach(function(doc) {
+      var c = doc.data();
+      var p = db.collection('parents').doc(doc.id).get().then(function(pDoc) {
+        return { uid: doc.id, name: pDoc.exists ? pDoc.data().name : '?', balance: c.balance || 0, totalPurchased: c.totalPurchased || 0 };
+      });
+      promises.push(p);
+    });
+    Promise.all(promises).then(function(items) {
+      var html = '<table class="admin-table"><thead><tr><th>Szülő</th><th>Egyenleg</th><th>Vásárolt</th><th>Művelet</th></tr></thead><tbody>';
+      items.forEach(function(item) {
+        html += '<tr>'
+          + '<td>' + esc(item.name) + '</td>'
+          + '<td>' + item.balance + ' kredit</td>'
+          + '<td>' + item.totalPurchased + ' kredit</td>'
+          + '<td><button class="btn btn-xs btn-primary" onclick="addCreditsManually(\'' + item.uid + '\',\'' + esc(item.name) + '\')">+4 kredit</button></td>'
+          + '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    });
+  });
+}
+
+function addCreditsManually(uid, name) {
+  if (!confirm('Biztosan jóváírsz 4 kreditet ' + name + ' számára?')) return;
+  db.collection('credits').doc(uid).update({
+    balance: firebase.firestore.FieldValue.increment(4),
+    totalPurchased: firebase.firestore.FieldValue.increment(4),
+    lastActivityAt: firebase.firestore.FieldValue.serverTimestamp(),
+    expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+    transactions: firebase.firestore.FieldValue.arrayUnion({
+      type: 'manual',
+      amount: 4,
+      reason: 'Admin jóváírás (készpénz/átutalás)',
+      date: new Date().toISOString()
+    })
+  }).then(function() { alert('4 kredit jóváírva.'); loadCreditsTab(); });
+}
+
+// ── Jelenléti ív ──
+function loadAttendanceTab() {
+  var container = document.getElementById('tab-content');
+  container.innerHTML = '<p class="loading">Betöltés…</p>';
+
+  db.collection('sessions').where('status', 'in', ['open', 'full']).orderBy('date').orderBy('startTime').get().then(function(snap) {
+    if (snap.empty) { container.innerHTML = '<p style="color:var(--text-muted);">Nincs nyitott óra.</p>'; return; }
+    var html = '<table class="admin-table"><thead><tr><th>Óra</th><th>Dátum</th><th>Résztvevők</th><th>Művelet</th></tr></thead><tbody>';
+    snap.forEach(function(doc) {
+      var s = doc.data();
+      var enrolled = s.enrolledStudents ? s.enrolledStudents.length : 0;
+      html += '<tr>'
+        + '<td>' + esc(s.type) + '</td>'
+        + '<td>' + esc(s.date) + ' ' + esc(s.startTime) + '</td>'
+        + '<td>' + enrolled + ' fő</td>'
+        + '<td><button class="btn btn-xs btn-primary" onclick="showAttendanceDetail(\'' + doc.id + '\')">Jelenlét</button></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  });
+}
+
+function showAttendanceDetail(sessionId) {
+  var container = document.getElementById('tab-content');
+  container.innerHTML = '<p class="loading">Betöltés…</p>';
+
+  Promise.all([
+    db.collection('sessions').doc(sessionId).get(),
+    db.collection('bookings').where('sessionId', '==', sessionId).where('status', 'in', ['confirmed', 'pending_payment']).get()
+  ]).then(function(results) {
+    var session = results[0].data();
+    var bookings = results[1];
+
+    var promises = [];
+    bookings.forEach(function(bDoc) {
+      var b = bDoc.data();
+      promises.push(
+        db.collection('students').doc(b.studentId).get().then(function(sDoc) {
+          return {
+            bookingId: bDoc.id,
+            studentName: sDoc.exists ? sDoc.data().name : '?',
+            status: b.status,
+            attended: b.attended || false
+          };
+        })
+      );
+    });
+
+    Promise.all(promises).then(function(items) {
+      var html = '<h3 style="font-size:16px;margin-bottom:16px;">Jelenléti ív — ' + esc(session.date) + ' ' + esc(session.startTime) + ' (' + esc(session.type) + ')</h3>';
+      html += '<table class="admin-table"><thead><tr><th>Diák</th><th>Státusz</th><th>Jelen volt?</th></tr></thead><tbody>';
+      items.forEach(function(item) {
+        html += '<tr>'
+          + '<td>' + esc(item.studentName) + '</td>'
+          + '<td>' + esc(item.status) + '</td>'
+          + '<td><button class="btn btn-xs ' + (item.attended ? 'btn-primary' : 'btn-outline') + '" onclick="toggleAttendance(\'' + item.bookingId + '\', ' + !item.attended + ', this)">' + (item.attended ? '✅ Igen' : '❌ Nem') + '</button></td>'
+          + '</tr>';
+      });
+      html += '</tbody></table>';
+      html += '<button class="btn btn-sm btn-outline" style="margin-top:16px;" onclick="loadAttendanceTab()">← Vissza</button>';
+      container.innerHTML = html;
+    });
+  });
+}
+
+function toggleAttendance(bookingId, present, btn) {
+  db.collection('bookings').doc(bookingId).update({
+    attended: present,
+    status: present ? 'attended' : 'confirmed'
+  }).then(function() {
+    btn.textContent = present ? '✅ Igen' : '❌ Nem';
+    btn.className = 'btn btn-xs ' + (present ? 'btn-primary' : 'btn-outline');
+  });
+}
+
+// ── Diákok ──
+function loadStudentsTab() {
+  var container = document.getElementById('tab-content');
+  container.innerHTML = '<p class="loading">Betöltés…</p>';
+
+  db.collection('students').get().then(function(sSnap) {
+    if (sSnap.empty) { container.innerHTML = '<p style="color:var(--text-muted);">Nincs diák.</p>'; return; }
+
+    var promises = [];
+    sSnap.forEach(function(sDoc) {
+      var s = sDoc.data();
+      var p = db.collection('parentStudent').where('studentId', '==', sDoc.id).get().then(function(psSnap) {
+        var parents = [];
+        var pPromises = [];
+        psSnap.forEach(function(psDoc) {
+          pPromises.push(
+            db.collection('parents').doc(psDoc.data().parentUid).get().then(function(pDoc) {
+              return pDoc.exists ? pDoc.data().name : '?';
+            })
+          );
+        });
+        return Promise.all(pPromises).then(function(names) {
+          return { name: s.name, age: s.age || '', parents: names.join(', ') };
+        });
+      });
+      promises.push(p);
+    });
+
+    Promise.all(promises).then(function(items) {
+      var html = '<table class="admin-table"><thead><tr><th>Diák</th><th>Életkor</th><th>Szülő(k)</th></tr></thead><tbody>';
+      items.forEach(function(item) {
+        html += '<tr><td>' + esc(item.name) + '</td><td>' + esc(item.age) + '</td><td>' + esc(item.parents) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    });
+  });
+}
+
+function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+
+</body>
+</html>
