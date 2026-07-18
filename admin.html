@@ -18,10 +18,9 @@
 
 <header class="site-header">
   <div class="site-header-inner">
-    <span class="site-name">Admin — Pintér Tamás</span>
+    <a href="/" class="site-name">Admin — Pintér Tamás</a>
     <nav class="site-nav">
-      <a href="/">Főoldal</a>
-      <span id="login-badge"></span>
+      <span id="login-badge" class="login-badge"></span>
     </nav>
   </div>
 </header>
@@ -85,6 +84,10 @@
     <!-- User lista -->
     <div class="admin-card">
       <h2>📋 Felhasználók listája</h2>
+      <p class="topic-hint">Kattints egy témára a jogosultság be/ki kapcsolásához. <strong>Kék</strong> = aktív, <strong>szürke</strong> = kikapcsolva.</p>
+      <div class="search-bar">
+        <input type="text" id="user-search" placeholder="🔍 Keresés név vagy email alapján..." oninput="filterUsers()">
+      </div>
       <div id="users-list">
         <div class="loading-spinner">⏳ Betöltés...</div>
       </div>
@@ -200,19 +203,17 @@ async function loadUsers() {
     snapshot.forEach(doc => {
       const data = doc.data();
       const topics = data.allowedTopics || [];
-      const topicLabels = topics.map(t => {
-        const labels = { 'egeszseg':'🏥','elhizas':'⚖️','tanulas':'📚','munka-vallalkozas':'💼','emberi-kapcsolatok':'🤝' };
-        return labels[t] || t;
-      }).join(' ') || '❌ nincs';
+      const allTopics = ['egeszseg', 'elhizas', 'tanulas', 'munka-vallalkozas', 'emberi-kapcsolatok'];
+      const topicLabels = {'egeszseg':'🏥 Egészség','elhizas':'⚖️ Elhízás','tanulas':'📚 Tanulás','munka-vallalkozas':'💼 Munka','emberi-kapcsolatok':'🤝 Kapcsolatok'};
 
       html += `
-        <div class="user-row" data-uid="${doc.id}">
+        <div class="user-row" data-uid="${doc.id}" data-name="${(data.displayName || '').toLowerCase()}" data-email="${(data.email || '').toLowerCase()}">
           <div class="user-info">
             <strong>${data.displayName || '—'}</strong>
             <span class="user-email">${data.email}</span>
           </div>
           <div class="user-topics">
-            ${topics.map(t => `<span class="topic-badge ${topics.includes(t) ? 'active' : ''}" onclick="toggleTopic('${doc.id}','${t}')">${t}</span>`).join(' ')}
+            ${allTopics.map(t => `<span class="topic-badge ${topics.includes(t) ? 'active' : ''}" onclick="toggleTopic('${doc.id}','${t}')">${topicLabels[t]}</span>`).join(' ')}
           </div>
           <div class="user-actions">
             <input type="password" class="reset-pwd-input" placeholder="Új jelszó" id="pwd-${doc.id}">
@@ -281,6 +282,21 @@ async function deleteUser(uid) {
   } catch (error) {
     alert('Hiba: ' + error.message);
   }
+}
+
+// Kereső funkció
+function filterUsers() {
+  const query = document.getElementById('user-search').value.toLowerCase();
+  const rows = document.querySelectorAll('.user-row');
+  rows.forEach(row => {
+    const name = row.getAttribute('data-name');
+    const email = row.getAttribute('data-email');
+    if (name.includes(query) || email.includes(query)) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
 }
 </script>
 
@@ -377,16 +393,34 @@ async function deleteUser(uid) {
 .user-topics { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
 .topic-badge {
   font-size: 11px;
-  padding: 4px 10px;
+  padding: 6px 14px;
   border-radius: 20px;
   background: #eef1f5;
   color: #999;
   cursor: pointer;
   transition: all .15s;
   user-select: none;
+  white-space: nowrap;
 }
 .topic-badge.active { background: #dce8f2; color: var(--blue); font-weight: 600; }
-.topic-badge:hover { background: var(--blue); color: #fff; }
+.topic-badge.active:hover { background: #c8d8e8; color: var(--blue); }
+.topic-badge.inactive:hover { background: var(--blue); color: #fff; }
+.topic-hint { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+.search-bar { margin-bottom: 16px; }
+.search-bar input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.search-bar input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(45,106,159,0.1);
+}
 .user-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .reset-pwd-input {
   width: 120px;

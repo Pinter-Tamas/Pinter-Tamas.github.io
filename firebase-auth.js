@@ -82,7 +82,7 @@ function updateUI() {
       <button onclick="logout()" class="btn-logout">Kilépés</button>
     `;
   } else {
-    loginBadge.innerHTML = `<a href="/login.html" class="btn-login">Bejelentkezés</a>`;
+    loginBadge.innerHTML = ``;
   }
 }
 

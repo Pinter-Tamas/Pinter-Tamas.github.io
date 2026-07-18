@@ -19,10 +19,9 @@
 
 <header class="site-header">
   <div class="site-header-inner">
-    <span class="site-name">Pintér Tamás</span>
+    <a href="/" class="site-name">Pintér Tamás</a>
     <nav class="site-nav">
-      <a href="/">Főoldal</a>
-      <span id="login-badge"></span>
+      <span id="login-badge" class="login-badge"></span>
     </nav>
   </div>
 </header>
@@ -53,7 +52,6 @@
 </footer>
 
 <script>
-// Oldal inicializálása
 document.addEventListener('DOMContentLoaded', function() {
   initProtectedPage();
 });
@@ -71,13 +69,28 @@ function initProtectedPage() {
       return;
     }
 
-    // Betöltjük a user adatait
     await loadUserTopics(user.uid);
     updateUI();
-
-    // Megjelenítjük a tartalmakat
     document.getElementById('auth-message').style.display = 'none';
     document.getElementById('protected-content').style.display = 'block';
+
+    if (!userTopics || userTopics.length === 0) {
+      document.getElementById('topics-content').innerHTML = `
+        <div class="no-access">
+          <h2>🚫 Nincs hozzáférésed</h2>
+          <p>Jelenleg egyetlen zárt tartalomhoz sincs hozzáférésed.</p>
+          <p>Ha úgy gondolod, hogy ez hiba, kérlek, vedd fel a kapcsolatot.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Ha csak 1 téma van, közvetlenül oda irányítunk
+    if (userTopics.length === 1) {
+      window.location.href = '/zar-tartalmak/' + userTopics[0] + '/';
+      return;
+    }
+
     renderTopics();
   });
 }
@@ -85,70 +98,47 @@ function initProtectedPage() {
 function renderTopics() {
   const container = document.getElementById('topics-content');
 
-  if (!userTopics || userTopics.length === 0) {
-    container.innerHTML = `
-      <div class="no-access">
-        <h2>🚫 Nincs hozzáférésed</h2>
-        <p>Jelenleg egyetlen zárt tartalomhoz sincs hozzáférésed.</p>
-        <p>Ha úgy gondolod, hogy ez hiba, kérlek, vedd fel a kapcsolatot.</p>
-      </div>
-    `;
-    return;
-  }
-
-  let html = '<div class="protected-grid">';
-
   const topicMap = {
     'egeszseg': {
       title: '🏥 Egészség',
       desc: 'Kizárólagos egészségügyi anyagok, dokumentumok',
-      files: [
-        { name: 'Dokumentumok listája', url: '/zar-tartalmak/egeszseg/' }
-      ]
+      slug: 'egeszseg'
     },
     'elhizas': {
       title: '⚖️ Elhízás',
       desc: 'Testsúly-kontrollal kapcsolatos zárt anyagok',
-      files: [
-        { name: 'Dokumentumok listája', url: '/zar-tartalmak/elhizas/' }
-      ]
+      slug: 'elhizas'
     },
     'tanulas': {
       title: '📚 Tanulás',
       desc: 'Tanulással kapcsolatos kiegészítő anyagok',
-      files: [
-        { name: 'Dokumentumok listája', url: '/zar-tartalmak/tanulas/' }
-      ]
+      slug: 'tanulas'
     },
     'munka-vallalkozas': {
       title: '💼 Munka / Vállalkozás',
       desc: 'Üzleti és karrier anyagok',
-      files: [
-        { name: 'Dokumentumok listája', url: '/zar-tartalmak/munka-vallalkozas/' }
-      ]
+      slug: 'munka-vallalkozas'
     },
     'emberi-kapcsolatok': {
       title: '🤝 Emberi Kapcsolatok',
       desc: 'Kapcsolati témájú kiegészítő anyagok',
-      files: [
-        { name: 'Dokumentumok listája', url: '/zar-tartalmak/emberi-kapcsolatok/' }
-      ]
+      slug: 'emberi-kapcsolatok'
     }
   };
+
+  let html = '<div class="protected-grid">';
 
   userTopics.forEach(topic => {
     const info = topicMap[topic];
     if (!info) return;
 
     html += `
-      <div class="protected-card">
-        <div class="card-eyebrow">Zárt tartalom</div>
+      <a class="protected-card" href="/zar-tartalmak/${info.slug}/">
+        <div class="card-eyebrow">🔒 Zárt tartalom</div>
         <h3>${info.title}</h3>
         <p>${info.desc}</p>
-        <div class="protected-files">
-          ${info.files.map(f => `<a href="${f.url}" class="file-link">📄 ${f.name}</a>`).join('')}
-        </div>
-      </div>
+        <span class="read-more">Klikkelj ide, hogy lásd az anyagokat →</span>
+      </a>
     `;
   });
 
@@ -180,28 +170,16 @@ function renderTopics() {
   gap: 24px;
 }
 .protected-card {
+  display: block;
+  color: inherit !important;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 28px;
-  transition: box-shadow .15s;
+  transition: box-shadow .15s, border-color .15s;
 }
-.protected-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.09); }
+.protected-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.09); border-color: var(--blue); text-decoration: none; }
 .protected-card h3 { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 10px; }
 .protected-card p { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; }
-.protected-files { display: flex; flex-direction: column; gap: 8px; }
-.file-link {
-  font-size: 14px;
-  padding: 8px 12px;
-  background: var(--blue-light);
-  border-radius: 6px;
-  color: var(--blue);
-  font-weight: 600;
-  transition: background .15s;
-}
-.file-link:hover {
-  background: #dce8f2;
-  text-decoration: none;
-}
 .no-access {
   text-align: center;
   padding: 60px 24px;

@@ -33,8 +33,40 @@ a:hover { text-decoration: underline; }
   height: 58px;
 }
 .site-name { color: #fff; font-size: 19px; font-weight: 700; }
+.site-name:hover { color: #fff; text-decoration: none; }
 .site-nav a { color: rgba(255,255,255,.82); font-size: 14px; margin-left: 24px; }
 .site-nav a:hover { color: #fff; text-decoration: none; }
+
+/* ── Login badge (fejléc) ── */
+.site-nav #login-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 24px;
+}
+.login-user-name {
+  color: rgba(255,255,255,.82);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.btn-logout {
+  background: none;
+  border: 1px solid rgba(255,255,255,.5);
+  color: rgba(255,255,255,.82);
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+}
+.btn-logout:hover { background: rgba(255,255,255,.15); border-color: #fff; color: #fff; }
+.btn-login {
+  color: rgba(255,255,255,.82);
+  font-size: 14px;
+  margin-left: 24px;
+}
+.btn-login:hover { color: #fff; text-decoration: none; }
 
 /* ── Hub hero ── */
 .hub-hero {
