@@ -149,20 +149,15 @@ function bookSession(sessionId) {
     return;
   }
 
-  // Kredit ellenőrzés
+  var parent = window.trainingUser;
+
+  if (parent.paymentMethod === 'cash' || parent.paymentMethod === 'bank_transfer') {
+    // Kp-s / átutalásos: mindig confirmed booking, kredit levonás akár negatívba is
+    return createConfirmedBooking(uid, studentId, sessionId);
+  }
+
+  // Stripe → kredit ellenőrzés
   db.collection('credits').doc(uid).get().then(function(cDoc) {
-    var parent = window.trainingUser;
-
-    if (parent.paymentMethod === 'cash' || parent.paymentMethod === 'bank_transfer') {
-      // Készpénzes/átutalásos → mindig pending_payment
-      if (!cDoc.exists || cDoc.data().balance < 1) {
-        // 0 kredites is mehet, admin majd jóváhagyja kp után
-        return createPendingBooking(uid, studentId, sessionId);
-      }
-      return createConfirmedBooking(uid, studentId, sessionId);
-    }
-
-    // Stripe → ha nincs kredit, irányítás a fizetési oldalra
     if (!cDoc.exists || cDoc.data().balance < 1) {
       if (confirm('Nincs elég kredited. Szeretnél most vásárolni (10.000 Ft = 4 kredit)?')) {
         window.location.href = 'credits.html';
@@ -179,10 +174,29 @@ function bookSession(sessionId) {
 }
 
 function createConfirmedBooking(uid, studentId, sessionId) {
-  return db.collection('credits').doc(uid).update({
-    balance: firebase.firestore.FieldValue.increment(-1),
-    totalUsed: firebase.firestore.FieldValue.increment(1),
-    lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
+  // Kredit levonás - ha nem létezik a doksi, létrehozzuk -1-gyel
+  return db.collection('credits').doc(uid).get().then(function(cDoc) {
+    if (cDoc.exists) {
+      return db.collection('credits').doc(uid).update({
+        balance: firebase.firestore.FieldValue.increment(-1),
+        totalUsed: firebase.firestore.FieldValue.increment(1),
+        lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      // Első foglalás, még nincs credits doksi (kp-s szülő, 0 kredit)
+      return db.collection('credits').doc(uid).set({
+        balance: -1,
+        totalPurchased: 0,
+        totalUsed: 1,
+        lastActivityAt: firebase.firestore.FieldValue.serverTimestamp(),
+        transactions: [{
+          type: 'booking',
+          amount: -1,
+          reason: 'Foglalás (készpénz, fizetés előtt)',
+          date: new Date().toISOString()
+        }]
+      });
+    }
   }).then(function() {
     return db.collection('bookings').add({
       parentUid: uid,
@@ -197,24 +211,6 @@ function createConfirmedBooking(uid, studentId, sessionId) {
     });
   }).then(function() {
     document.getElementById('booking-success').textContent = 'Sikeres foglalás! A kredit levonásra került.';
-    document.getElementById('booking-success').style.display = 'block';
-    loadSessions();
-  });
-}
-
-function createPendingBooking(uid, studentId, sessionId) {
-  return db.collection('bookings').add({
-    parentUid: uid,
-    studentId: studentId,
-    sessionId: sessionId,
-    status: 'pending_payment',
-    bookedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(function() {
-    return db.collection('sessions').doc(sessionId).update({
-      enrolledStudents: firebase.firestore.FieldValue.arrayUnion(studentId)
-    });
-  }).then(function() {
-    document.getElementById('booking-success').textContent = 'Foglalás függőben. A fizetés után az admin jóváhagyja.';
     document.getElementById('booking-success').style.display = 'block';
     loadSessions();
   });
