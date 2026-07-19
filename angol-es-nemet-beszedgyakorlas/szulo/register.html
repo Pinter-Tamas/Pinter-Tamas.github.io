@@ -230,11 +230,11 @@ document.getElementById('register-form').addEventListener('submit', function() {
   btn.disabled = true;
   btn.textContent = 'Folyamatban…';
 
-  // Firebase Auth regisztráció
-  auth.createUserWithEmailAndPassword(email, password)
-    .then(function(userCred) {
-      var uid = userCred.user.uid;
-      // Parent dokumentum létrehozása
+  // Firebase Auth — smart regisztráció:
+  // ha már van ilyen email (zárt tartalmak miatt), automatikusan bejelentkezteti
+  registerOrSignIn(email, password)
+    .then(function(uid) {
+      // Parent dokumentum létrehozása vagy frissítése
       return db.collection('parents').doc(uid).set({
         name: name,
         email: email,
@@ -243,7 +243,7 @@ document.getElementById('register-form').addEventListener('submit', function() {
         registered: true,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         role: 'payer'
-      });
+      }, { merge: true });  // merge: true — ha már létezik (zárt tartalmakból), csak frissíti
     })
     .then(function() {
       // Diákok létrehozása és parentStudent kapcsoló
@@ -255,7 +255,6 @@ document.getElementById('register-form').addEventListener('submit', function() {
           preferredPartner: student.preferredPartner,
           enrolledAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(function(studentRef) {
-          // Kapcsoló tábla
           return db.collection('parentStudent').add({
             parentUid: uid,
             studentId: studentRef.id,
@@ -267,14 +266,18 @@ document.getElementById('register-form').addEventListener('submit', function() {
       return Promise.all(promises);
     })
     .then(function() {
-      // Kredit inicializálás (0 egyenleggel)
+      // Kredit inicializálás, de csak ha még nem létezik
       var uid = auth.currentUser.uid;
-      return db.collection('credits').doc(uid).set({
-        balance: 0,
-        totalPurchased: 0,
-        totalUsed: 0,
-        lastActivityAt: firebase.firestore.FieldValue.serverTimestamp(),
-        transactions: []
+      return db.collection('credits').doc(uid).get().then(function(cDoc) {
+        if (!cDoc.exists) {
+          return db.collection('credits').doc(uid).set({
+            balance: 0,
+            totalPurchased: 0,
+            totalUsed: 0,
+            lastActivityAt: firebase.firestore.FieldValue.serverTimestamp(),
+            transactions: []
+          });
+        }
       });
     })
     .then(function() {
@@ -282,24 +285,44 @@ document.getElementById('register-form').addEventListener('submit', function() {
       document.getElementById('form-success').style.display = 'block';
       document.getElementById('register-form').style.display = 'none';
 
-      // Stripe esetén → fizetési oldal
       if (payment === 'stripe') {
         setTimeout(function() {
           window.location.href = '../payment.html';
         }, 1500);
       } else {
-        // Készpénz/átutalás → dashboard
         setTimeout(function() {
           window.location.href = 'dashboard.html';
         }, 1500);
       }
     })
     .catch(function(err) {
-      errDiv.textContent = 'Hiba: ' + (err.message || 'Ismeretlen hiba');
+      var msg = 'Hiba: ' + (err.message || 'Ismeretlen hiba');
+      if (err.code === 'auth/wrong-password') {
+        msg = 'Ez az email már regisztrálva van a weboldalon, de a megadott jelszó hibás. Ha elfelejtetted a jelszavad, használd a "Bejelentkezés" oldalon az "Elfelejtett jelszó" funkciót.';
+      }
+      errDiv.textContent = msg;
       errDiv.style.display = 'block';
       btn.disabled = false;
       btn.textContent = 'Regisztráció';
     });
+
+// Segédfüggvény: regisztrál, vagy ha már létezik az email, beléptet
+function registerOrSignIn(email, password) {
+  return auth.createUserWithEmailAndPassword(email, password)
+    .then(function(userCred) {
+      return userCred.user.uid;
+    })
+    .catch(function(err) {
+      if (err.code === 'auth/email-already-in-use') {
+        // Beléptetjük a már létező fiókkal
+        return auth.signInWithEmailAndPassword(email, password).then(function(userCred) {
+          return userCred.user.uid;
+        });
+      }
+      // Minden más hiba → továbbdobás
+      throw err;
+    });
+}
 });
 </script>
 
