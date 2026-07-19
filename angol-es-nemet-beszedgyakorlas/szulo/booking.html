@@ -59,6 +59,7 @@ function loadSessions() {
   var container = document.getElementById('sessions-container');
 
   db.collection('sessions')
+    .where('status', '==', 'open')
     .where('date', '>=', new Date().toISOString().split('T')[0])
     .get()
     .then(function(snapshot) {

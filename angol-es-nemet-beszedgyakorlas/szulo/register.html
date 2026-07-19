@@ -112,7 +112,7 @@
       </div>
 
       <!-- Swap notification checkbox -->
-      <div id="swap-notif-section" style="display:none;margin-top:16px;padding:16px;background:#f8f9fa;border-radius:8px;">
+      <div id="swap-notif-section" style="margin-top:16px;padding:16px;background:#f8f9fa;border-radius:8px;">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:14px;">
           <input type="checkbox" id="swap-notif-checkbox" style="margin-top:3px;width:18px;height:18px;">
           <span>Szeretnék értesülni az órák előtti utolsó 24 órában felszabaduló időpontokról, amik elcserélhetők.</span>
@@ -155,7 +155,6 @@ function selectPayment(method, el) {
   // Info panels
   document.getElementById('stripe-info').style.display = method === 'stripe' ? 'block' : 'none';
   document.getElementById('manual-payment-info').style.display = method !== 'stripe' ? 'block' : 'none';
-  document.getElementById('swap-notif-section').style.display = method !== 'stripe' ? 'block' : 'none';
   if (method === 'cash') {
     document.getElementById('manual-payment-text').textContent =
       'A készpénzt az első órán hozd el. 10.000 Ft = 4 kredit.';

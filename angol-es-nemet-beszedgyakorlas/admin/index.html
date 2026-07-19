@@ -184,25 +184,48 @@ function createSession() {
 
 function cancelSession(sessionId) {
   if (!confirm('Biztosan törlöd ezt az órát? A résztvevők kreditjei jóváíródnak.')) return;
-  db.collection('sessions').doc(sessionId).update({ status: 'cancelled', cancelledAt: new Date().toISOString() })
-    .then(function() {
-      return db.collection('bookings').where('sessionId', '==', sessionId).where('status', '==', 'confirmed').get()
-        .then(function(bSnap) {
-          var promises = [];
-          bSnap.forEach(function(bDoc) {
+  db.collection('sessions').doc(sessionId).get().then(function(sDoc) {
+    var session = sDoc.data();
+    var enrolled = session.enrolledStudents || [];
+
+    // Session törlése
+    return db.collection('sessions').doc(sessionId).update({ status: 'cancelled', cancelledAt: new Date().toISOString() })
+      .then(function() {
+        // Bookingok keresése (confirmed + pending_payment is)
+        return db.collection('bookings').where('sessionId', '==', sessionId).where('status', 'in', ['confirmed', 'pending_payment']).get();
+      })
+      .then(function(bSnap) {
+        var promises = [];
+        bSnap.forEach(function(bDoc) {
+          var b = bDoc.data();
+
+          // Kredit visszaírás (csak confirmed volt)
+          if (b.status === 'confirmed') {
             promises.push(
-              db.collection('credits').doc(bDoc.data().parentUid).update({
+              db.collection('credits').doc(b.parentUid).update({
                 balance: firebase.firestore.FieldValue.increment(1),
                 totalUsed: firebase.firestore.FieldValue.increment(-1),
                 lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
-              }),
-              db.collection('bookings').doc(bDoc.id).update({ status: 'cancelled', cancelledAt: firebase.firestore.FieldValue.serverTimestamp() })
+              })
             );
-          });
-          return Promise.all(promises);
+          }
+
+          // Booking cancelled
+          promises.push(
+            db.collection('bookings').doc(bDoc.id).update({ status: 'cancelled', cancelledAt: firebase.firestore.FieldValue.serverTimestamp() })
+          );
         });
-    })
-    .then(function() { alert('Óra törölve. Kreditek jóváírva.'); loadSessionsTable(); });
+
+        // enrolledStudents lista ürítése
+        promises.push(
+          db.collection('sessions').doc(sessionId).update({
+            enrolledStudents: []
+          })
+        );
+
+        return Promise.all(promises);
+      });
+  }).then(function() { alert('Óra törölve. Kreditek jóváírva.'); loadSessionsTable(); });
 }
 
 // ── Függő fizetések ──
