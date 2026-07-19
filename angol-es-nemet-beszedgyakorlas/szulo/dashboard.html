@@ -303,46 +303,80 @@ function requestSwap(bookingId, studentName) {
 function acceptSwap(swapBookingId) {
   if (!confirm('Biztosan átveszed ezt az időpontot? Egy kredit levonásra kerül.')) return;
   var uid = auth.currentUser.uid;
+  var parent = window.trainingUser;
 
-  // Ellenőrizzük a kredit egyenleget
+  if (parent.paymentMethod === 'cash' || parent.paymentMethod === 'bank_transfer') {
+    // Kp-s / átutalásos: mehet, akár negatívba is
+    return doAcceptSwap(swapBookingId, uid);
+  }
+
+  // Stripe: ellenőrizzük a kredit egyenleget
   db.collection('credits').doc(uid).get().then(function(cDoc) {
     if (!cDoc.exists || cDoc.data().balance < 1) {
-      alert('Nincs elég kredited! Vásárolj kreditet előbb.');
+      if (confirm('Nincs elég kredited. Szeretnél most vásárolni (10.000 Ft = 4 kredit)?')) {
+        window.location.href = 'credits.html';
+      }
       return;
     }
+    return doAcceptSwap(swapBookingId, uid);
+  });
+}
 
-    // Swap booking adatai
-    return db.collection('bookings').doc(swapBookingId).get().then(function(bDoc) {
-      var original = bDoc.data();
+function doAcceptSwap(swapBookingId, uid) {
+  return db.collection('bookings').doc(swapBookingId).get().then(function(bDoc) {
+    var original = bDoc.data();
 
-      // Eredeti booking → cancelled, kredit vissza
-      return db.collection('bookings').doc(swapBookingId).update({
-        status: 'cancelled',
-        cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
-      }).then(function() {
-        // Eredeti usernek kredit vissza
-        return db.collection('credits').doc(original.parentUid).update({
-          balance: firebase.firestore.FieldValue.increment(1),
-          totalUsed: firebase.firestore.FieldValue.increment(-1),
-          lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      }).then(function() {
-        // Session-ból eredeti diák kivéve
-        return db.collection('sessions').doc(original.sessionId).update({
-          enrolledStudents: firebase.firestore.FieldValue.arrayRemove(original.studentId)
-        });
-      }).then(function() {
-        // Új foglalás saját diáknak — bekérjük melyik diáknak
-        var studentId = prompt('Melyik gyereked veszi át az időpontot? Írd be a nevét pontosan.');
-        if (!studentId) return Promise.reject('cancelled');
+    // Eredeti booking → cancelled, kredit vissza
+    return db.collection('bookings').doc(swapBookingId).update({
+      status: 'cancelled',
+      cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(function() {
+      // Eredeti usernek kredit vissza
+      return db.collection('credits').doc(original.parentUid).update({
+        balance: firebase.firestore.FieldValue.increment(1),
+        totalUsed: firebase.firestore.FieldValue.increment(-1),
+        lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }).then(function() {
+      // Session-ból eredeti diák kivéve
+      return db.collection('sessions').doc(original.sessionId).update({
+        enrolledStudents: firebase.firestore.FieldValue.arrayRemove(original.studentId)
+      });
+    }).then(function() {
+      // Új foglalás saját diáknak — bekérjük melyik diáknak
+      var studentId = prompt('Melyik gyereked veszi át az időpontot? Írd be a nevét pontosan.');
+      if (!studentId) return Promise.reject('cancelled');
 
-        return db.collection('students').where('name', '==', studentId.trim()).get().then(function(sSnap) {
-          if (sSnap.empty) {
-            alert('Nem található ilyen nevű gyerek.');
-            return Promise.reject('cancelled');
+      return db.collection('students').where('name', '==', studentId.trim()).get().then(function(sSnap) {
+        if (sSnap.empty) {
+          alert('Nem található ilyen nevű gyerek.');
+          return Promise.reject('cancelled');
+        }
+        var studentUid = sSnap.docs[0].id;
+
+        // Kredit levonás - ha nem létezik a doksi, létrehozzuk -1-gyel
+        return db.collection('credits').doc(uid).get().then(function(cDoc) {
+          if (cDoc.exists) {
+            return db.collection('credits').doc(uid).update({
+              balance: firebase.firestore.FieldValue.increment(-1),
+              totalUsed: firebase.firestore.FieldValue.increment(1),
+              lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          } else {
+            return db.collection('credits').doc(uid).set({
+              balance: -1,
+              totalPurchased: 0,
+              totalUsed: 1,
+              lastActivityAt: firebase.firestore.FieldValue.serverTimestamp(),
+              transactions: [{
+                type: 'swap',
+                amount: -1,
+                reason: 'Csere átvétel (készpénz, fizetés előtt)',
+                date: new Date().toISOString()
+              }]
+            });
           }
-          var studentUid = sSnap.docs[0].id;
-
+        }).then(function() {
           // Új booking
           return db.collection('bookings').add({
             parentUid: uid,
@@ -351,18 +385,11 @@ function acceptSwap(swapBookingId) {
             status: 'confirmed',
             bookedAt: firebase.firestore.FieldValue.serverTimestamp(),
             creditTransactionId: 'swap_' + swapBookingId
-          }).then(function() {
-            // Session-ba beír
-            return db.collection('sessions').doc(original.sessionId).update({
-              enrolledStudents: firebase.firestore.FieldValue.arrayUnion(studentUid)
-            });
-          }).then(function() {
-            // Saját kredit levonás
-            return db.collection('credits').doc(uid).update({
-              balance: firebase.firestore.FieldValue.increment(-1),
-              totalUsed: firebase.firestore.FieldValue.increment(1),
-              lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+          });
+        }).then(function() {
+          // Session-ba beír
+          return db.collection('sessions').doc(original.sessionId).update({
+            enrolledStudents: firebase.firestore.FieldValue.arrayUnion(studentUid)
           });
         });
       });
