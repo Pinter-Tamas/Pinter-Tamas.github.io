@@ -191,8 +191,8 @@ function cancelSession(sessionId) {
     // Session törlése
     return db.collection('sessions').doc(sessionId).update({ status: 'cancelled', cancelledAt: new Date().toISOString() })
       .then(function() {
-        // Bookingok keresése (confirmed + pending_payment is)
-        return db.collection('bookings').where('sessionId', '==', sessionId).where('status', 'in', ['confirmed', 'pending_payment']).get();
+        // Bookingok keresése (csak confirmed, pending_payment-nek nincs kreditje)
+        return db.collection('bookings').where('sessionId', '==', sessionId).where('status', '==', 'confirmed').get();
       })
       .then(function(bSnap) {
         var promises = [];

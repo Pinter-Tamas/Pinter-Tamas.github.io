@@ -59,13 +59,17 @@ function loadSessions() {
   var container = document.getElementById('sessions-container');
 
   db.collection('sessions')
-    .where('status', '==', 'open')
     .where('date', '>=', new Date().toISOString().split('T')[0])
     .get()
     .then(function(snapshot) {
       // Rendezzük kliens oldalon dátum + idő szerint
       var docs = [];
-      snapshot.forEach(function(doc) { docs.push({ id: doc.id, data: doc.data() }); });
+      snapshot.forEach(function(doc) {
+        // Csak open státuszú órákat mutatunk (kliens oldali szűrés, nincs composite index)
+        if (doc.data().status === 'open') {
+          docs.push({ id: doc.id, data: doc.data() });
+        }
+      });
       docs.sort(function(a, b) {
         if (a.data.date !== b.data.date) return a.data.date.localeCompare(b.data.date);
         return a.data.startTime.localeCompare(b.data.startTime);
