@@ -47,7 +47,7 @@
 <script src="../firebase-training-config.js"></script>
 
 <script>
-// Admin guard — ellenőrizzük, hogy a user admin-e
+// Admin guard
 window.onTrainingAuthReady = function() {
   if (!window.trainingUser) {
     window.location.href = '../login.html?redirect=admin';
@@ -122,16 +122,21 @@ function loadSessionsTable() {
       var s = doc.data();
       var enrolled = s.enrolledStudents ? s.enrolledStudents.length : 0;
       var typeLabel = s.type === 'vegyes' ? 'Angol+Német' : (s.type === 'angol' ? 'Angol' : 'Német');
+      var statusLabel = s.status === 'open' ? 'Nyitott' : (s.status === 'cancelled' ? 'Törölve' : s.status);
+      var actionBtns = '';
+      if (s.status === 'open') {
+        actionBtns = '<button class="btn btn-xs btn-danger" onclick="cancelSession(\'' + doc.id + '\')">Törlés</button>';
+      } else if (s.status === 'cancelled') {
+        actionBtns = '<button class="btn btn-xs btn-primary" onclick="restoreSession(\'' + doc.id + '\')">Visszaállítás</button>';
+      }
       html += '<tr>'
         + '<td>' + esc(typeLabel) + '</td>'
         + '<td>' + esc(s.date) + '</td>'
         + '<td>' + esc(s.startTime) + '–' + esc(s.endTime) + '</td>'
         + '<td>' + esc(s.location) + '</td>'
         + '<td>' + enrolled + '/' + s.maxParticipants + '</td>'
-        + '<td>' + esc(s.status) + '</td>'
-        + '<td>'
-        + '<button class="btn btn-xs btn-danger" onclick="cancelSession(\'' + doc.id + '\')">Törlés</button>'
-        + '</td>'
+        + '<td>' + statusLabel + '</td>'
+        + '<td>' + actionBtns + '</td>'
         + '</tr>';
     });
     html += '</tbody></table>';
@@ -182,33 +187,44 @@ function createSession() {
   });
 }
 
+function queueEmail(to, subject, htmlBody) {
+  return db.collection('mail').add({
+    to: to,
+    message: { subject: subject, html: htmlBody }
+  });
+}
+
 function cancelSession(sessionId) {
+  var reason = prompt('Add meg a törlés indokát (ezt a szülők email-ben kapják):', '');
+  if (reason === null) return; // Mégse
+
   if (!confirm('Biztosan törlöd ezt az órát? A résztvevők kreditjei jóváíródnak.')) return;
+
   db.collection('sessions').doc(sessionId).get().then(function(sDoc) {
     var session = sDoc.data();
-    var enrolled = session.enrolledStudents || [];
+    var typeLabel = session.type === 'vegyes' ? 'Angol és Német' : (session.type === 'angol' ? 'Angol' : 'Német');
 
     // Session törlése
     return db.collection('sessions').doc(sessionId).update({ status: 'cancelled', cancelledAt: new Date().toISOString() })
       .then(function() {
-        // Bookingok keresése (csak confirmed, pending_payment-nek nincs kreditje)
         return db.collection('bookings').where('sessionId', '==', sessionId).where('status', '==', 'confirmed').get();
       })
       .then(function(bSnap) {
         var promises = [];
+        var parentEmails = [];
+
         bSnap.forEach(function(bDoc) {
           var b = bDoc.data();
+          parentEmails.push(b.parentUid);
 
-          // Kredit visszaírás (csak confirmed volt)
-          if (b.status === 'confirmed') {
-            promises.push(
-              db.collection('credits').doc(b.parentUid).update({
-                balance: firebase.firestore.FieldValue.increment(1),
-                totalUsed: firebase.firestore.FieldValue.increment(-1),
-                lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
-              })
-            );
-          }
+          // Kredit visszaírás
+          promises.push(
+            db.collection('credits').doc(b.parentUid).update({
+              balance: firebase.firestore.FieldValue.increment(1),
+              totalUsed: firebase.firestore.FieldValue.increment(-1),
+              lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
+            })
+          );
 
           // Booking cancelled
           promises.push(
@@ -218,14 +234,42 @@ function cancelSession(sessionId) {
 
         // enrolledStudents lista ürítése
         promises.push(
-          db.collection('sessions').doc(sessionId).update({
-            enrolledStudents: []
-          })
+          db.collection('sessions').doc(sessionId).update({ enrolledStudents: [] })
         );
+
+        // Email a szülőknek
+        bSnap.forEach(function(bDoc) {
+          var b = bDoc.data();
+          var p = db.collection('parents').doc(b.parentUid).get().then(function(pDoc) {
+            if (pDoc.exists) {
+              var parent = pDoc.data();
+              return queueEmail(parent.email,
+                'Óra törölve — ' + typeLabel,
+                `<p>Kedves ${parent.name}!</p>
+<p>A következő óra törlésre került:</p>
+<ul>
+  <li><strong>Dátum:</strong> ${session.date} ${session.startTime}–${session.endTime}</li>
+  <li><strong>Típus:</strong> ${typeLabel}</li>
+  <li><strong>Helyszín:</strong> ${session.location}</li>
+</ul>
+<p><strong>Indok:</strong> ${esc(reason)}</p>
+<p>Kredited (+1) jóváírtuk. Foglalhatsz másik időpontot a weboldalon.</p>
+<p>Üdv,<br>Pintér Tamás</p>`
+              );
+            }
+          });
+          promises.push(p);
+        });
 
         return Promise.all(promises);
       });
-  }).then(function() { alert('Óra törölve. Kreditek jóváírva.'); loadSessionsTable(); });
+  }).then(function() { alert('Óra törölve. Kreditek jóváírva. Szülők értesítve.'); loadSessionsTable(); });
+}
+
+function restoreSession(sessionId) {
+  if (!confirm('Biztosan visszaállítod ezt az órát?')) return;
+  db.collection('sessions').doc(sessionId).update({ status: 'open' })
+    .then(function() { alert('Óra visszaállítva.'); loadSessionsTable(); });
 }
 
 // ── Függő fizetések ──

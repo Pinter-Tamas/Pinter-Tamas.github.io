@@ -154,28 +154,44 @@ function bookSession(sessionId) {
     return;
   }
 
-  var parent = window.trainingUser;
-
-  if (parent.paymentMethod === 'cash' || parent.paymentMethod === 'bank_transfer') {
-    // Kp-s / átutalásos: mindig confirmed booking, kredit levonás akár negatívba is
-    return createConfirmedBooking(uid, studentId, sessionId);
-  }
-
-  // Stripe → kredit ellenőrzés
-  db.collection('credits').doc(uid).get().then(function(cDoc) {
-    if (!cDoc.exists || cDoc.data().balance < 1) {
-      if (confirm('Nincs elég kredited. Szeretnél most vásárolni (10.000 Ft = 4 kredit)?')) {
-        window.location.href = 'credits.html';
+  // Dupla foglalás ellenőrzés: már létezik confirmed booking erre a sessionre + diákra
+  db.collection('bookings')
+    .where('sessionId', '==', sessionId)
+    .where('studentId', '==', studentId)
+    .where('status', 'in', ['confirmed', 'pending_payment'])
+    .get()
+    .then(function(existing) {
+      if (!existing.empty) {
+        // Lekérjük a diák nevét a hibaüzenethez
+        return db.collection('students').doc(studentId).get().then(function(sDoc) {
+          var name = sDoc.exists ? sDoc.data().name : 'ismeretlen';
+          document.getElementById('booking-error').textContent = name + ' már be van foglalva erre az órára.';
+          document.getElementById('booking-error').style.display = 'block';
+          return;
+        });
       }
-      return;
-    }
 
-    return createConfirmedBooking(uid, studentId, sessionId);
-  }).catch(function(err) {
-    console.error(err);
-    document.getElementById('booking-error').textContent = 'Hiba történt. Próbáld újra.';
-    document.getElementById('booking-error').style.display = 'block';
-  });
+      var parent = window.trainingUser;
+
+      if (parent.paymentMethod === 'cash' || parent.paymentMethod === 'bank_transfer') {
+        return createConfirmedBooking(uid, studentId, sessionId);
+      }
+
+      // Stripe → kredit ellenőrzés
+      return db.collection('credits').doc(uid).get().then(function(cDoc) {
+        if (!cDoc.exists || cDoc.data().balance < 1) {
+          if (confirm('Nincs elég kredited. Szeretnél most vásárolni (10.000 Ft = 4 kredit)?')) {
+            window.location.href = 'credits.html';
+          }
+          return;
+        }
+        return createConfirmedBooking(uid, studentId, sessionId);
+      });
+    }).catch(function(err) {
+      console.error(err);
+      document.getElementById('booking-error').textContent = 'Hiba történt. Próbáld újra.';
+      document.getElementById('booking-error').style.display = 'block';
+    });
 }
 
 function createConfirmedBooking(uid, studentId, sessionId) {
