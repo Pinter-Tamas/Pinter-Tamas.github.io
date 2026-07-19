@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profil — Angol és Német Beszédgyakorlás</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗣️</text></svg>">
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../training.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-name" href="../../index.html">Pintér Tamás</a>
+    <nav class="site-nav">
+      <a href="../../index.html">Főoldal</a>
+      <a href="../index.html">Beszédgyakorlás</a>
+      <a href="dashboard.html">Dashboard</a>
+      <button class="btn-logout" onclick="auth.signOut()">Kilépés</button>
+    </nav>
+  </div>
+</header>
+
+<section class="training-section">
+  <div class="training-inner" style="max-width:560px;">
+    <h2>Profil szerkesztése</h2>
+
+    <div id="msg" class="notification" style="display:none;"></div>
+
+    <!-- Szülő adatok -->
+    <h3 style="font-size:16px;font-weight:700;color:#111;margin-bottom:16px;">Szülő adatai</h3>
+    <div class="training-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="p-name">Teljes név</label>
+          <input type="text" id="p-name">
+        </div>
+        <div class="form-group">
+          <label for="p-phone">Telefonszám</label>
+          <input type="tel" id="p-phone">
+        </div>
+      </div>
+      <div class="form-group">
+        <button class="btn btn-primary" onclick="saveParent()">Mentés</button>
+      </div>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:28px 0;">
+
+    <!-- Fizetési mód -->
+    <h3 style="font-size:16px;font-weight:700;color:#111;margin-bottom:16px;">Fizetési mód</h3>
+    <div class="payment-options" style="max-width:560px;">
+      <div class="payment-option" onclick="changePayment('stripe', this)" id="pay-stripe">
+        <div class="po-icon">💳</div>
+        <div class="po-label">Bankkártya online</div>
+      </div>
+      <div class="payment-option" onclick="changePayment('cash', this)" id="pay-cash">
+        <div class="po-icon">💵</div>
+        <div class="po-label">Készpénz</div>
+      </div>
+      <div class="payment-option" onclick="changePayment('bank_transfer', this)" id="pay-bank">
+        <div class="po-icon">🏦</div>
+        <div class="po-label">Átutalás</div>
+      </div>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:28px 0;">
+
+    <!-- Gyerekek -->
+    <h3 style="font-size:16px;font-weight:700;color:#111;margin-bottom:16px;">Gyerek(ek)</h3>
+    <div id="students-list"></div>
+
+    <button class="add-student-btn" onclick="showAddStudentForm()">+ Új gyerek hozzáadása</button>
+    <div id="add-student-form" style="display:none;margin-top:16px;">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Név</label>
+          <input type="text" id="new-s-name" placeholder="Pl. Kovács Péter">
+        </div>
+        <div class="form-group">
+          <label>Életkor</label>
+          <input type="number" id="new-s-age" min="5" max="20" placeholder="Pl. 14">
+        </div>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="addNewStudent()">Hozzáadás</button>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:28px 0;">
+
+    <!-- Jelszó változtatás -->
+    <h3 style="font-size:16px;font-weight:700;color:#111;margin-bottom:16px;">Jelszó változtatás</h3>
+    <div class="training-form">
+      <div class="form-group">
+        <label for="new-pw">Új jelszó</label>
+        <input type="password" id="new-pw" placeholder="Minimum 6 karakter" minlength="6">
+      </div>
+      <button class="btn btn-primary" onclick="changePassword()">Jelszó mentése</button>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <p>© 2026 Pintér Tamás · <a href="../../index.html">pinter-tamas.github.io</a></p>
+</footer>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="../firebase-training-config.js"></script>
+
+<script>
+window.onTrainingAuthReady = function() {
+  if (!window.trainingUser) {
+    window.location.href = '../login.html';
+    return;
+  }
+  loadProfile();
+};
+
+function msg(t, type) {
+  var el = document.getElementById('msg');
+  el.textContent = t;
+  el.className = 'notification notification-' + type;
+  el.style.display = 'block';
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function loadProfile() {
+  var uid = auth.currentUser.uid;
+  db.collection('parents').doc(uid).get().then(function(doc) {
+    if (doc.exists) {
+      var p = doc.data();
+      document.getElementById('p-name').value = p.name || '';
+      document.getElementById('p-phone').value = p.phone || '';
+      if (p.paymentMethod === 'stripe') document.getElementById('pay-stripe').classList.add('selected');
+      else if (p.paymentMethod === 'cash') document.getElementById('pay-cash').classList.add('selected');
+      else if (p.paymentMethod === 'bank_transfer') document.getElementById('pay-bank').classList.add('selected');
+    }
+  });
+
+  // Gyerekek
+  loadStudents();
+}
+
+function loadStudents() {
+  var uid = auth.currentUser.uid;
+  db.collection('parentStudent').where('parentUid', '==', uid).get().then(function(psSnap) {
+    var promises = [];
+    psSnap.forEach(function(psDoc) {
+      promises.push(db.collection('students').doc(psDoc.data().studentId).get().then(function(sDoc) {
+        return sDoc.exists ? { id: sDoc.id, name: sDoc.data().name, age: sDoc.data().age || '', partner: sDoc.data().preferredPartner || '', psId: psDoc.id } : null;
+      }));
+    });
+    Promise.all(promises).then(function(students) {
+      students = students.filter(function(s) { return s !== null; });
+      var html = '';
+      students.forEach(function(s) {
+        html += '<div class="student-entry">'
+          + '<button type="button" class="remove-student" onclick="removeStudent(\'' + s.id + '\',\'' + s.psId + '\')">&times;</button>'
+          + '<div><strong>' + esc(s.name) + '</strong>'
+          + (s.age ? ' · ' + s.age + ' éves' : '') + '</div>'
+          + (s.partner ? '<div style="font-size:13px;color:var(--text-muted);">Preferált partner: ' + esc(s.partner) + '</div>' : '')
+          + '</div>';
+      });
+      document.getElementById('students-list').innerHTML = html || '<p style="color:var(--text-muted);">Nincs gyerek.</p>';
+    });
+  });
+}
+
+function saveParent() {
+  var uid = auth.currentUser.uid;
+  var name = document.getElementById('p-name').value.trim();
+  var phone = document.getElementById('p-phone').value.trim();
+  if (!name) { msg('A név megadása kötelező.', 'error'); return; }
+  db.collection('parents').doc(uid).update({ name: name, phone: phone }).then(function() {
+    msg('Adatok mentve!', 'success');
+  });
+}
+
+window._paymentChanging = false;
+function changePayment(method, el) {
+  if (window._paymentChanging) return;
+  window._paymentChanging = true;
+  var uid = auth.currentUser.uid;
+  db.collection('parents').doc(uid).update({ paymentMethod: method }).then(function() {
+    document.querySelectorAll('.payment-option').forEach(function(o) { o.classList.remove('selected'); });
+    el.classList.add('selected');
+    msg('Fizetési mód frissítve!', 'success');
+    window._paymentChanging = false;
+  }).catch(function() { window._paymentChanging = false; });
+}
+
+function showAddStudentForm() {
+  document.getElementById('add-student-form').style.display = 'block';
+}
+
+function addNewStudent() {
+  var name = document.getElementById('new-s-name').value.trim();
+  var age = document.getElementById('new-s-age').value;
+  if (!name) { msg('Add meg a gyerek nevét.', 'error'); return; }
+  var uid = auth.currentUser.uid;
+  db.collection('students').add({ name: name, age: age, preferredPartner: '', enrolledAt: new Date().toISOString() }).then(function(ref) {
+    return db.collection('parentStudent').add({ parentUid: uid, studentId: ref.id, relationship: 'parent', canBook: true }).then(function() {
+      msg('Gyerek hozzáadva!', 'success');
+      document.getElementById('new-s-name').value = '';
+      document.getElementById('new-s-age').value = '';
+      document.getElementById('add-student-form').style.display = 'none';
+      loadStudents();
+    });
+  });
+}
+
+function removeStudent(studentId, psId) {
+  if (!confirm('Biztosan eltávolítod ezt a gyereket?')) return;
+  db.collection('students').doc(studentId).delete().then(function() {
+    return db.collection('parentStudent').doc(psId).delete();
+  }).then(function() {
+    msg('Gyerek eltávolítva.', 'success');
+    loadStudents();
+  });
+}
+
+function changePassword() {
+  var pw = document.getElementById('new-pw').value;
+  if (pw.length < 6) { msg('A jelszó legalább 6 karakter.', 'error'); return; }
+  auth.currentUser.updatePassword(pw).then(function() {
+    msg('Jelszó megváltoztatva!', 'success');
+    document.getElementById('new-pw').value = '';
+  }).catch(function(err) {
+    msg('Hiba: ' + err.message, 'error');
+  });
+}
+
+function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+
+</body>
+</html>
