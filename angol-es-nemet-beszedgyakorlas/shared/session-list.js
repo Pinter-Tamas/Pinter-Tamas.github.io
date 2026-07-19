@@ -7,17 +7,22 @@ function loadUpcomingSessions(containerId) {
   db.collection('sessions')
     .where('date', '>=', new Date().toISOString().split('T')[0])
     .where('status', '==', 'open')
-    .orderBy('date', 'asc')
-    .orderBy('startTime', 'asc')
     .get()
     .then(function(snapshot) {
-      if (snapshot.empty) {
+      // Rendezzük kliens oldalon
+      var docs = [];
+      snapshot.forEach(function(doc) { docs.push({ id: doc.id, data: doc.data() }); });
+      docs.sort(function(a, b) {
+        if (a.data.date !== b.data.date) return a.data.date.localeCompare(b.data.date);
+        return a.data.startTime.localeCompare(b.data.startTime);
+      });
+      if (docs.length === 0) {
         container.innerHTML = '<p class="loading">Jelenleg nincs elérhető időpont. Nézz vissza később!</p>';
         return;
       }
       var html = '';
-      snapshot.forEach(function(doc) {
-        var s = doc.data();
+      docs.forEach(function(doc) {
+        var s = doc.data;
         var enrolled = s.enrolledStudents ? s.enrolledStudents.length : 0;
         var spotsLeft = s.maxParticipants - enrolled;
         var spotsText = spotsLeft > 0
