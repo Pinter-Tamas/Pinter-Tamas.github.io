@@ -1,5 +1,5 @@
 // 🔥 Firebase Training konfiguráció
-// Ugyanaz a Firebase projekt, de a 'training' Firestore adatbázist használja
+// Ugyanaz a Firebase projekt, a default Firestore adatbázist használja
 
 const firebaseConfig = {
   apiKey: "AIzaSyALb6wHKYLPHn0HNzhCuWVNmEaLHpvtlgA",
@@ -13,19 +13,15 @@ const firebaseConfig = {
 // Firebase inicializálás
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
-// Training adatbázis — a 'training' nevű Firestore database
-const db = firebase.firestore(firebase.app(), 'training');
+const db = firebase.firestore();  // default adatbázis (nem 'training')
 
 // Auth state figyelő
 auth.onAuthStateChanged(function(user) {
   if (user) {
-    // Ellenőrizzük, hogy van-e training regisztrációja
     db.collection('parents').doc(user.uid).get().then(function(doc) {
       if (doc.exists && doc.data().registered) {
-        // Be van regisztrálva a training rendszerbe
         window.trainingUser = { uid: user.uid, ...doc.data() };
       } else {
-        // Nincs még training regisztráció
         window.trainingUser = null;
       }
       if (window.onTrainingAuthReady) window.onTrainingAuthReady();
