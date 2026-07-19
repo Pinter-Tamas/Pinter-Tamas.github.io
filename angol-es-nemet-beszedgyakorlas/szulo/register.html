@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Regisztráció — Angol és Német Beszédgyakorlás</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗣️</text></svg>">
   <link rel="stylesheet" href="../../style.css">
   <link rel="stylesheet" href="../training.css">
 </head>
@@ -26,9 +27,6 @@
       Töltsd ki az adataidat, add meg a gyerekeid nevét, és válassz fizetési módot.
       A regisztráció után azonnal foglalhatsz időpontot.
     </p>
-
-    <div id="form-success" class="notification notification-success" style="display:none;"></div>
-    <div id="form-error" class="notification notification-error" style="display:none;"></div>
 
     <form id="register-form" class="training-form" onsubmit="return false;">
       <!-- Szülő adatai -->
@@ -113,6 +111,9 @@
         <div style="margin-top:8px;font-size:13px;">A foglalás a fizetés igazolásáig függőben marad. Admin jóváhagyása után a kreditek jóváíródnak.</div>
       </div>
 
+      <div id="form-error" class="notification notification-error" style="display:none;"></div>
+      <div id="form-success" class="notification notification-success" style="display:none;"></div>
+
       <div class="form-group" style="margin-top:24px;">
         <button type="submit" class="btn btn-primary" style="width:100%;" id="submit-btn">Regisztráció</button>
       </div>
@@ -190,21 +191,15 @@ document.getElementById('register-form').addEventListener('submit', function() {
   errDiv.style.display = 'none';
   document.getElementById('form-success').style.display = 'none';
 
-  if (!name || !phone || !email || !password) {
-    errDiv.textContent = 'Minden mező kitöltése kötelező.';
+  function showError(msg) {
+    errDiv.textContent = msg;
     errDiv.style.display = 'block';
-    return;
+    errDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
-  if (password.length < 6) {
-    errDiv.textContent = 'A jelszó legalább 6 karakter.';
-    errDiv.style.display = 'block';
-    return;
-  }
-  if (!payment) {
-    errDiv.textContent = 'Válassz fizetési módot.';
-    errDiv.style.display = 'block';
-    return;
-  }
+
+  if (!name || !phone || !email || !password) { showError('Minden mező kitöltése kötelező.'); return; }
+  if (password.length < 6) { showError('A jelszó legalább 6 karakter.'); return; }
+  if (!payment) { showError('Válassz fizetési módot.'); return; }
 
   // Gyerek adatok gyűjtése
   var students = [];
