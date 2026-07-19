@@ -116,12 +116,12 @@ function loadSessionsTab() {
 }
 
 function loadSessionsTable() {
-  db.collection('sessions').orderBy('date', 'desc').orderBy('startTime').get().then(function(snap) {
+  db.collection('sessions').orderBy('date', 'desc').get().then(function(snap) {
     var html = '<table class="admin-table"><thead><tr><th>Típus</th><th>Dátum</th><th>Idő</th><th>Helyszín</th><th>Létszám</th><th>Státusz</th><th>Művelet</th></tr></thead><tbody>';
     snap.forEach(function(doc) {
       var s = doc.data();
       var enrolled = s.enrolledStudents ? s.enrolledStudents.length : 0;
-      var typeLabel = s.type === 'vegyes' ? 'Angol+Nemét' : (s.type === 'angol' ? 'Angol' : 'Némét');
+      var typeLabel = s.type === 'vegyes' ? 'Angol+Német' : (s.type === 'angol' ? 'Angol' : 'Német');
       html += '<tr>'
         + '<td>' + esc(typeLabel) + '</td>'
         + '<td>' + esc(s.date) + '</td>'
@@ -142,7 +142,7 @@ function loadSessionsTable() {
 function showNewSessionForm() {
   document.getElementById('session-form').innerHTML = ''
     + '<h3 style="font-size:16px;margin-bottom:16px;">Új óra</h3>'
-    + '<div class="form-row"><div class="form-group"><label>Típus</label><select id="new-type"><option value="vegyes">Angol & Némét</option><option value="angol">Angol</option><option value="német">Némét</option></select></div>'
+    + '<div class="form-row"><div class="form-group"><label>Típus</label><select id="new-type"><option value="vegyes">Angol & Német</option><option value="angol">Angol</option><option value="német">Német</option></select></div>'
     + '<div class="form-group"><label>Max létszám</label><input type="number" id="new-max" value="30" min="4" max="50"></div></div>'
     + '<div class="form-row"><div class="form-group"><label>Dátum</label><input type="date" id="new-date"></div>'
     + '<div class="form-row"><div class="form-group"><label>Kezdés</label><input type="time" id="new-start" value="16:00"></div>'
@@ -186,7 +186,6 @@ function cancelSession(sessionId) {
   if (!confirm('Biztosan törlöd ezt az órát? A résztvevők kreditjei jóváíródnak.')) return;
   db.collection('sessions').doc(sessionId).update({ status: 'cancelled', cancelledAt: new Date().toISOString() })
     .then(function() {
-      // Minden confirmed booking kredit visszaírása
       return db.collection('bookings').where('sessionId', '==', sessionId).where('status', '==', 'confirmed').get()
         .then(function(bSnap) {
           var promises = [];
@@ -260,11 +259,7 @@ function loadPendingTab() {
 function approvePayment(bookingId) {
   db.collection('bookings').doc(bookingId).get().then(function(bDoc) {
     var b = bDoc.data();
-    // Kredit jóváírás: +1 (mivel a foglalás már megtörtént, de pendingben volt)
     return db.collection('credits').doc(b.parentUid).get().then(function(cDoc) {
-      var currentBalance = cDoc.exists ? (cDoc.data().balance || 0) : 0;
-
-      // Frissítjük a bookingot + kredit tranzakció
       return db.collection('bookings').doc(bookingId).update({ status: 'confirmed' }).then(function() {
         return db.collection('credits').doc(b.parentUid).update({
           balance: firebase.firestore.FieldValue.increment(1),
@@ -352,7 +347,7 @@ function loadAttendanceTab() {
   var container = document.getElementById('tab-content');
   container.innerHTML = '<p class="loading">Betöltés…</p>';
 
-  db.collection('sessions').where('status', 'in', ['open', 'full']).orderBy('date').orderBy('startTime').get().then(function(snap) {
+  db.collection('sessions').where('status', 'in', ['open', 'full']).orderBy('date').get().then(function(snap) {
     if (snap.empty) { container.innerHTML = '<p style="color:var(--text-muted);">Nincs nyitott óra.</p>'; return; }
     var html = '<table class="admin-table"><thead><tr><th>Óra</th><th>Dátum</th><th>Résztvevők</th><th>Művelet</th></tr></thead><tbody>';
     snap.forEach(function(doc) {

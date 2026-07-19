@@ -24,7 +24,7 @@ function loadUpcomingSessions(containerId) {
           ? '<span class="session-spots">Szabad hely: ' + spotsLeft + ' / ' + s.maxParticipants + '</span>'
           : '<span class="session-spots session-full">Betelt</span>';
 
-        var typeLabel = s.type === 'vegyes' ? 'Angol & Némét' : (s.type === 'angol' ? 'Angol' : 'Némét');
+        var typeLabel = s.type === 'vegyes' ? 'Angol & Német' : (s.type === 'angol' ? 'Angol' : 'Német');
 
         html += '<div class="session-card">'
           + '<span class="session-type">' + escapeHtml(typeLabel) + '</span>'

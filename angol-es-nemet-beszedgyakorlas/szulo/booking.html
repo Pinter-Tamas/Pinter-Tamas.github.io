@@ -95,7 +95,7 @@ function loadSessions() {
             var spotsLeft = s.maxParticipants - enrolled;
             var canBook = spotsLeft > 0 && (s.status === 'open' || s.status === 'full');
 
-            var typeLabel = s.type === 'vegyes' ? 'Angol & Némét' : (s.type === 'angol' ? 'Angol' : 'Némét');
+            var typeLabel = s.type === 'vegyes' ? 'Angol & Német' : (s.type === 'angol' ? 'Angol' : 'Német');
 
             var studentOptions = students.map(function(st) {
               return '<option value="' + st.id + '">' + escapeHtml(st.name) + '</option>';

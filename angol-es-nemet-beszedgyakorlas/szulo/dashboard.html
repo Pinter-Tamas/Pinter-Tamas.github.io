@@ -179,7 +179,7 @@ function loadBookings(uid) {
           var studentName = r[1];
           var statusClass = b.status === 'confirmed' ? 'status-confirmed' : 'status-pending';
           var statusLabel = b.status === 'confirmed' ? 'Megerősítve' : 'Fizetésre vár';
-          var typeLabel = b.sessionType === 'vegyes' ? 'Angol & Némét' : (b.sessionType === 'angol' ? 'Angol' : 'Némét');
+          var typeLabel = b.sessionType === 'vegyes' ? 'Angol & Német' : (b.sessionType === 'angol' ? 'Angol' : 'Német');
 
           html += '<div class="booking-item">'
             + '<span class="booking-status ' + statusClass + '">' + statusLabel + '</span>'
@@ -239,7 +239,7 @@ function loadSwapBoard(uid) {
         }
         var html = '';
         items.forEach(function(item) {
-          var typeLabel = item.sessionType === 'vegyes' ? 'Angol & Némét' : (item.sessionType === 'angol' ? 'Angol' : 'Némét');
+          var typeLabel = item.sessionType === 'vegyes' ? 'Angol & Német' : (item.sessionType === 'angol' ? 'Angol' : 'Német');
           html += '<div class="booking-item">'
             + '<span class="booking-status status-pending">Csere</span>'
             + '<div><strong>' + escapeHtml(item.studentName) + '</strong> nem tud jönni — ' + escapeHtml(typeLabel) + '</div>'
