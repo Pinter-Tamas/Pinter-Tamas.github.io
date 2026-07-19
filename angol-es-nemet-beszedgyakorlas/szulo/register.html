@@ -151,8 +151,8 @@ function selectPayment(method, el) {
     document.getElementById('manual-payment-text').textContent =
       'A készpénzt az első órán hozd el. 10.000 Ft = 4 kredit.';
   } else if (method === 'bank_transfer') {
-    document.getElementById('manual-payment-text').textContent =
-      'Átutalási adatok: [számlaszámot itt add meg admin-ként]. 10.000 Ft = 4 kredit.';
+    document.getElementById('manual-payment-text').innerHTML =
+      'Utald el a 10.000 Ft-ot a következő számlára.<br><strong>Számlatulajdonos:</strong> Vita Profil Bt.<br><strong>Számlaszám:</strong> 12092000-01388613-00100003<br><br>Közleménybe írd be a neved. Admin ellenőrzi → 4 kredit jóváírás.';
   }
 }
 
