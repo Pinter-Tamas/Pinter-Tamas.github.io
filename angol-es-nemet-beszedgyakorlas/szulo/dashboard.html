@@ -202,6 +202,8 @@ function loadBookings(uid) {
 // Csere tábla
 function loadSwapBoard(uid) {
   var container = document.getElementById('swap-board');
+  var userEmail = window.trainingUser ? window.trainingUser.email : '';
+
   db.collection('bookings')
     .where('status', '==', 'swap_requested')
     .get()
@@ -213,8 +215,13 @@ function loadSwapBoard(uid) {
       var promises = [];
       snapshot.forEach(function(bDoc) {
         var b = bDoc.data();
+
         // Saját cserét ne mutassuk
         if (b.parentUid === uid) return;
+
+        // Ha van targetEmail, csak annak mutassuk akinek szánják
+        if (b.targetEmail && b.targetEmail !== userEmail) return;
+
         var p = Promise.all([
           db.collection('sessions').doc(b.sessionId).get(),
           db.collection('students').doc(b.studentId).get()
@@ -222,13 +229,15 @@ function loadSwapBoard(uid) {
           var sDoc = results[0], stDoc = results[1];
           if (!sDoc.exists) return null;
           var s = sDoc.data();
+          var targetLabel = b.targetEmail ? ' (kizárólag ' + escapeHtml(b.targetEmail) + ' számára)' : '';
           return {
             bookingId: bDoc.id,
             studentName: stDoc.exists ? stDoc.data().name : 'Ismeretlen',
             sessionDate: s.date,
             sessionTime: s.startTime + '–' + s.endTime,
             sessionType: s.type,
-            sessionLocation: s.location
+            sessionLocation: s.location,
+            targetLabel: targetLabel
           };
         });
         promises.push(p);
@@ -245,7 +254,7 @@ function loadSwapBoard(uid) {
           html += '<div class="booking-item">'
             + '<span class="booking-status status-pending">Csere</span>'
             + '<div><strong>' + escapeHtml(item.studentName) + '</strong> nem tud jönni — ' + escapeHtml(typeLabel) + '</div>'
-            + '<div style="font-size:13px;color:var(--text-muted);">' + escapeHtml(formatDate(item.sessionDate)) + ' · ' + escapeHtml(item.sessionTime) + ' · ' + escapeHtml(item.sessionLocation) + '</div>'
+            + '<div style="font-size:13px;color:var(--text-muted);">' + escapeHtml(formatDate(item.sessionDate)) + ' · ' + escapeHtml(item.sessionTime) + ' · ' + escapeHtml(item.sessionLocation) + item.targetLabel + '</div>'
             + '<button class="btn btn-xs btn-primary" style="margin-top:8px;" onclick="acceptSwap(\'' + item.bookingId + '\')">Átveszem</button>'
             + '</div>';
         });
@@ -254,143 +263,216 @@ function loadSwapBoard(uid) {
     });
 }
 
-// Lemondás
-function cancelBooking(bookingId) {
-  if (!confirm('Biztosan lemondod ezt a foglalást?')) return;
-
-  db.collection('bookings').doc(bookingId).get().then(function(bDoc) {
-    if (!bDoc.exists) return;
-    var booking = bDoc.data();
-    var sessionId = booking.sessionId;
-
-    // Booking státusz → cancelled
-    return db.collection('bookings').doc(bookingId).update({
-      status: 'cancelled',
-      cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(function() {
-      // Eltávolítás a session enrolledStudents-ból
-      return db.collection('sessions').doc(sessionId).update({
-        enrolledStudents: firebase.firestore.FieldValue.arrayRemove(booking.studentId)
-      });
-    }).then(function() {
-      // Kredit visszaírás (ha confirmed volt)
-      if (booking.status === 'confirmed') {
-        return db.collection('credits').doc(booking.parentUid).update({
-          balance: firebase.firestore.FieldValue.increment(1),
-          totalUsed: firebase.firestore.FieldValue.increment(-1),
-          lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      }
-    }).then(function() {
-      alert('Foglalás lemondva. A kredit jóváírásra került.');
-      loadDashboard();
+// Segédfüggvény: session dátum lekérése bookingId alapján
+function getSessionDateForBooking(bookingId) {
+  return db.collection('bookings').doc(bookingId).get().then(function(bDoc) {
+    if (!bDoc.exists) return null;
+    return db.collection('sessions').doc(bDoc.data().sessionId).get().then(function(sDoc) {
+      if (!sDoc.exists) return null;
+      return new Date(sDoc.data().date + 'T' + sDoc.data().startTime);
     });
   });
 }
 
-// Csere kérés
+// Lemondás — 24 órás korlátozás
+function cancelBooking(bookingId) {
+  getSessionDateForBooking(bookingId).then(function(sessionDateTime) {
+    if (!sessionDateTime) {
+      alert('Hiba: az óra nem található.');
+      return;
+    }
+
+    var now = new Date();
+    var hoursLeft = (sessionDateTime - now) / (1000 * 60 * 60);
+
+    if (hoursLeft < 24) {
+      if (!confirm('Az óra kevesebb mint 24 óra múlva kezdődik. Lemondás helyett kérj cserét (kredit visszajár, ha valaki átveszi). Folytatod lemondással? (Kredit NEM jár vissza.)')) return;
+    } else {
+      if (!confirm('Biztosan lemondod ezt a foglalást?')) return;
+    }
+
+    db.collection('bookings').doc(bookingId).get().then(function(bDoc) {
+      if (!bDoc.exists) return;
+      var booking = bDoc.data();
+      var sessionId = booking.sessionId;
+
+      // Booking státusz → cancelled
+      return db.collection('bookings').doc(bookingId).update({
+        status: 'cancelled',
+        cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(function() {
+        // Eltávolítás a session enrolledStudents-ból
+        return db.collection('sessions').doc(sessionId).update({
+          enrolledStudents: firebase.firestore.FieldValue.arrayRemove(booking.studentId)
+        });
+      }).then(function() {
+        // Kredit visszaírás CSAK ha > 24 óra volt
+        if (booking.status === 'confirmed' && hoursLeft >= 24) {
+          return db.collection('credits').doc(booking.parentUid).update({
+            balance: firebase.firestore.FieldValue.increment(1),
+            totalUsed: firebase.firestore.FieldValue.increment(-1),
+            lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+      }).then(function() {
+        alert('Foglalás lemondva.' + (hoursLeft >= 24 ? ' A kredit jóváírásra került.' : ''));
+        loadDashboard();
+      });
+    });
+  });
+}
+
+// Csere kérés — opcionális email cím
 function requestSwap(bookingId, studentName) {
-  if (!confirm('Biztosan cserét kérsz erre az órára? A többi résztvevő láthatja.')) return;
-  db.collection('bookings').doc(bookingId).update({
+  var targetEmail = prompt('Kinek szeretnéd felajánlani? Ha megadod az email címét, csak ő láthatja. Ha üresen hagyod, mindenki láthatja.', '');
+
+  var msg = 'Biztosan cserét kérsz erre az órára?';
+  if (targetEmail && targetEmail.trim()) {
+    msg += ' Csak ' + targetEmail.trim() + ' láthatja.';
+  } else {
+    msg += ' A többi résztvevő láthatja.';
+  }
+
+  if (!confirm(msg)) return;
+
+  var updateData = {
     status: 'swap_requested'
-  }).then(function() {
-    alert('Csere kérés elküldve. A többi résztvevő láthatja.');
+  };
+  if (targetEmail && targetEmail.trim()) {
+    updateData.targetEmail = targetEmail.trim();
+  } else {
+    updateData.targetEmail = firebase.firestore.FieldValue.delete(); // ha volt előtte, töröljük
+  }
+
+  db.collection('bookings').doc(bookingId).update(updateData).then(function() {
+    alert('Csere kérés elküldve.' + (targetEmail && targetEmail.trim() ? ' Csak ' + targetEmail.trim() + ' láthatja.' : ''));
     loadDashboard();
   });
 }
 
-// Csere elfogadás
+// Segédfüggvény: átvevő gyerekeinek lekérése (1 gyereknél nincs prompt)
+function getMyStudents(uid) {
+  return db.collection('parentStudent').where('parentUid', '==', uid).get().then(function(psSnap) {
+    var promises = [];
+    psSnap.forEach(function(psDoc) {
+      promises.push(
+        db.collection('students').doc(psDoc.data().studentId).get().then(function(sDoc) {
+          return sDoc.exists ? { id: sDoc.id, name: sDoc.data().name } : null;
+        })
+      );
+    });
+    return Promise.all(promises).then(function(students) {
+      return students.filter(function(s) { return s !== null; });
+    });
+  });
+}
+
+// Csere elfogadás — fix sorrend + auto-detect 1 gyerek
 function acceptSwap(swapBookingId) {
   if (!confirm('Biztosan átveszed ezt az időpontot? Egy kredit levonásra kerül.')) return;
   var uid = auth.currentUser.uid;
   var parent = window.trainingUser;
 
-  if (parent.paymentMethod === 'cash' || parent.paymentMethod === 'bank_transfer') {
-    // Kp-s / átutalásos: mehet, akár negatívba is
-    return doAcceptSwap(swapBookingId, uid);
-  }
-
-  // Stripe: ellenőrizzük a kredit egyenleget
-  db.collection('credits').doc(uid).get().then(function(cDoc) {
-    if (!cDoc.exists || cDoc.data().balance < 1) {
-      if (confirm('Nincs elég kredited. Szeretnél most vásárolni (10.000 Ft = 4 kredit)?')) {
-        window.location.href = 'credits.html';
+  // 1. Ellenőrizzük a kreditet (Stripe-nál)
+  if (parent.paymentMethod !== 'cash' && parent.paymentMethod !== 'bank_transfer') {
+    db.collection('credits').doc(uid).get().then(function(cDoc) {
+      if (!cDoc.exists || cDoc.data().balance < 1) {
+        if (confirm('Nincs elég kredited. Szeretnél most vásárolni (10.000 Ft = 4 kredit)?')) {
+          window.location.href = 'credits.html';
+        }
+        return;
       }
-      return;
-    }
-    return doAcceptSwap(swapBookingId, uid);
-  });
+      proceedAcceptSwap(swapBookingId, uid);
+    });
+  } else {
+    proceedAcceptSwap(swapBookingId, uid);
+  }
 }
 
-function doAcceptSwap(swapBookingId, uid) {
-  return db.collection('bookings').doc(swapBookingId).get().then(function(bDoc) {
-    var original = bDoc.data();
+function proceedAcceptSwap(swapBookingId, uid) {
+  // 2. Lekérjük az eredeti booking adatait + átvevő gyerekeit
+  var originalBooking, targetSession;
 
-    // Eredeti booking → cancelled, kredit vissza
-    return db.collection('bookings').doc(swapBookingId).update({
-      status: 'cancelled',
-      cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+  db.collection('bookings').doc(swapBookingId).get().then(function(bDoc) {
+    originalBooking = bDoc.data();
+    return db.collection('sessions').doc(originalBooking.sessionId).get();
+  }).then(function(sDoc) {
+    targetSession = sDoc.data();
+    return getMyStudents(uid);
+  }).then(function(myStudents) {
+    if (myStudents.length === 0) {
+      alert('Nincs gyerek hozzárendelve a fiókodhoz.');
+      return Promise.reject('cancelled');
+    }
+
+    // Auto-detect ha 1 gyerek
+    var studentUid;
+    if (myStudents.length === 1) {
+      studentUid = myStudents[0].id;
+    } else {
+      var names = myStudents.map(function(s) { return s.name; }).join(', ');
+      var name = prompt('Melyik gyereked veszi át az időpontot? (' + names + ')');
+      if (!name) return Promise.reject('cancelled');
+
+      var found = myStudents.filter(function(s) { return s.name.toLowerCase() === name.trim().toLowerCase(); });
+      if (found.length === 0) {
+        alert('Nem található ilyen nevű gyerek.');
+        return Promise.reject('cancelled');
+      }
+      studentUid = found[0].id;
+    }
+
+    // 3. Új booking létrehozása
+    return db.collection('bookings').add({
+      parentUid: uid,
+      studentId: studentUid,
+      sessionId: originalBooking.sessionId,
+      status: 'confirmed',
+      bookedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      creditTransactionId: 'swap_' + swapBookingId
     }).then(function() {
-      // Eredeti usernek kredit vissza
-      return db.collection('credits').doc(original.parentUid).update({
-        balance: firebase.firestore.FieldValue.increment(1),
-        totalUsed: firebase.firestore.FieldValue.increment(-1),
-        lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
+      // Session-ba beír
+      return db.collection('sessions').doc(originalBooking.sessionId).update({
+        enrolledStudents: firebase.firestore.FieldValue.arrayUnion(studentUid)
       });
     }).then(function() {
-      // Session-ból eredeti diák kivéve
-      return db.collection('sessions').doc(original.sessionId).update({
-        enrolledStudents: firebase.firestore.FieldValue.arrayRemove(original.studentId)
-      });
-    }).then(function() {
-      // Új foglalás saját diáknak — bekérjük melyik diáknak
-      var studentId = prompt('Melyik gyereked veszi át az időpontot? Írd be a nevét pontosan.');
-      if (!studentId) return Promise.reject('cancelled');
-
-      return db.collection('students').where('name', '==', studentId.trim()).get().then(function(sSnap) {
-        if (sSnap.empty) {
-          alert('Nem található ilyen nevű gyerek.');
-          return Promise.reject('cancelled');
+      // 4. Átvevő kredit levonás
+      return db.collection('credits').doc(uid).get().then(function(cDoc) {
+        if (cDoc.exists) {
+          return db.collection('credits').doc(uid).update({
+            balance: firebase.firestore.FieldValue.increment(-1),
+            totalUsed: firebase.firestore.FieldValue.increment(1),
+            lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } else {
+          return db.collection('credits').doc(uid).set({
+            balance: -1,
+            totalPurchased: 0,
+            totalUsed: 1,
+            lastActivityAt: firebase.firestore.FieldValue.serverTimestamp(),
+            transactions: [{
+              type: 'swap',
+              amount: -1,
+              reason: 'Csere átvétel (készpénz, fizetés előtt)',
+              date: new Date().toISOString()
+            }]
+          });
         }
-        var studentUid = sSnap.docs[0].id;
-
-        // Kredit levonás - ha nem létezik a doksi, létrehozzuk -1-gyel
-        return db.collection('credits').doc(uid).get().then(function(cDoc) {
-          if (cDoc.exists) {
-            return db.collection('credits').doc(uid).update({
-              balance: firebase.firestore.FieldValue.increment(-1),
-              totalUsed: firebase.firestore.FieldValue.increment(1),
-              lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-          } else {
-            return db.collection('credits').doc(uid).set({
-              balance: -1,
-              totalPurchased: 0,
-              totalUsed: 1,
-              lastActivityAt: firebase.firestore.FieldValue.serverTimestamp(),
-              transactions: [{
-                type: 'swap',
-                amount: -1,
-                reason: 'Csere átvétel (készpénz, fizetés előtt)',
-                date: new Date().toISOString()
-              }]
-            });
-          }
-        }).then(function() {
-          // Új booking
-          return db.collection('bookings').add({
-            parentUid: uid,
-            studentId: studentUid,
-            sessionId: original.sessionId,
-            status: 'confirmed',
-            bookedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            creditTransactionId: 'swap_' + swapBookingId
-          });
-        }).then(function() {
-          // Session-ba beír
-          return db.collection('sessions').doc(original.sessionId).update({
-            enrolledStudents: firebase.firestore.FieldValue.arrayUnion(studentUid)
-          });
+      });
+    }).then(function() {
+      // 5. VÉGÜL: régi booking cancelled + eredeti usernek kredit vissza
+      return db.collection('bookings').doc(swapBookingId).update({
+        status: 'cancelled',
+        cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(function() {
+        return db.collection('credits').doc(originalBooking.parentUid).update({
+          balance: firebase.firestore.FieldValue.increment(1),
+          totalUsed: firebase.firestore.FieldValue.increment(-1),
+          lastActivityAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }).then(function() {
+        return db.collection('sessions').doc(originalBooking.sessionId).update({
+          enrolledStudents: firebase.firestore.FieldValue.arrayRemove(originalBooking.studentId)
         });
       });
     });
