@@ -50,7 +50,7 @@
 // Admin guard — ellenőrizzük, hogy a user admin-e
 window.onTrainingAuthReady = function() {
   if (!window.trainingUser) {
-    window.location.href = '../login.html';
+    window.location.href = '../login.html?redirect=admin';
     return;
   }
   loadOverview();

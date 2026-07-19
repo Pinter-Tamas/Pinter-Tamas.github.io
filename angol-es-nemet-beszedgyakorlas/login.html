@@ -77,13 +77,21 @@ document.getElementById('login-form').addEventListener('submit', function() {
 
   auth.signInWithEmailAndPassword(email, password)
     .then(function() {
-      // Ellenőrizzük a parent regisztrációt
+      // Ellenőrizzük a redirect paramétert
+      var urlParams = new URLSearchParams(window.location.search);
+      var redirect = urlParams.get('redirect');
       var uid = auth.currentUser.uid;
       db.collection('parents').doc(uid).get().then(function(doc) {
         if (doc.exists && doc.data().registered) {
-          window.location.href = 'szulo/dashboard.html';
+          if (redirect === 'admin' && doc.data().role === 'admin') {
+            window.location.href = 'admin/index.html';
+          } else if (redirect === 'admin') {
+            // Van fiókja de nem admin → dashboard
+            window.location.href = 'szulo/dashboard.html';
+          } else {
+            window.location.href = 'szulo/dashboard.html';
+          }
         } else {
-          // Nincs training regisztráció → irány a regisztráció
           window.location.href = 'szulo/register.html';
         }
       });
